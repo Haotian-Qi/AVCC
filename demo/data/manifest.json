@@ -1,0 +1,18 @@
+{
+  "version": "test-v1.0",
+  "fps": 25,
+  "segments": [
+    {
+      "video_id": "sL3jHOX826s",
+      "segment_id": "seg04",
+      "label": "2 speakers",
+      "speakers": ["0", "1"]
+    },
+    {
+      "video_id": "M9SWIUeAecA",
+      "segment_id": "seg20",
+      "label": "3 speakers",
+      "speakers": ["0", "1", "2"]
+    }
+  ]
+}
