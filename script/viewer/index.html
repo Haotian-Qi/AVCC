@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AVCC Viewer</title>
+<link rel="stylesheet" href="/viewer/viewer.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>AVCC</h1>
+    <span class="sub" id="summary"></span>
+  </header>
+
+  <div class="pick">
+    <label>Split <select id="split"></select></label>
+    <label>Video <select id="videoPick"></select></label>
+    <label>Segment <select id="seg"></select></label>
+    <button class="b" id="prevSeg" title="Previous segment ([)">◀</button>
+    <button class="b" id="nextSeg" title="Next segment (])">▶</button>
+    <span class="pos" id="pos"></span>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="stage" id="stage">
+        <video id="video" playsinline preload="metadata"></video>
+        <canvas id="overlay"></canvas>
+        <div class="novideo" id="novideo"></div>
+        <div class="caption" id="caption"></div>
+      </div>
+      <div class="ctrls">
+        <button class="b" id="play">Play</button>
+        <button class="b" id="back" title="Back 5 s (←)">−5 s</button>
+        <button class="b" id="fwd" title="Forward 5 s (→)">+5 s</button>
+        <button class="b" id="prevEv" title="Previous event (J)">◀ event</button>
+        <button class="b" id="nextEv" title="Next event (K)">event ▶</button>
+        <span class="time" id="time">0:00.0 / 0:00.0</span>
+        <span class="spacer"></span>
+        <label class="chk"><input type="checkbox" id="showBox" checked> boxes</label>
+        <label class="chk"><input type="checkbox" id="showCap" checked> words</label>
+      </div>
+      <div class="tl" id="tlWrap">
+        <div class="zoom">
+          <span>Zoom</span>
+          <button class="b" id="zoomOut" title="Zoom out (-)">−</button>
+          <input type="range" id="zoom" min="0" max="1000" value="500" aria-label="Timeline zoom">
+          <button class="b" id="zoomIn" title="Zoom in (+)">+</button>
+          <span class="val" id="zoomVal">20 s</span>
+          <button class="b" id="zoomFit" title="Show the whole segment">Fit</button>
+          <label class="chk"><input type="checkbox" id="follow" checked> follow playhead</label>
+        </div>
+        <canvas id="timeline"></canvas>
+        <div class="tip" id="tip"></div>
+        <canvas id="overview" style="margin-top:8px"></canvas>
+        <div class="legend" id="legend"></div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="panel">
+        <h2>Segment <span id="segName"></span></h2>
+        <dl id="stats"></dl>
+      </div>
+      <div class="panel">
+        <h2>Turn events <span id="evCount"></span>
+          <span class="filter" id="evFilter">
+            <button data-f="all" class="on">all</button>
+            <button data-f="hold">hold</button>
+            <button data-f="shift">shift</button>
+          </span>
+        </h2>
+        <div class="events"><table><tbody id="evRows"></tbody></table></div>
+      </div>
+      <div class="panel">
+        <h2>Annotation files</h2>
+        <ul class="files" id="files"></ul>
+      </div>
+    </div>
+  </div>
+
+  <p class="note">
+    Boxes are face tracks per frame (25 fps); a box is drawn thicker while that speaker is talking.
+    Speaker B is heard but not on screen, so B has no box.
+    The timeline shows each speaker's utterances, and on test segments the hold/shift events between turns.
+    Zoom in to 15 s or less to see single words; hover a bar for its text and timing.
+    Scroll on the timeline to zoom, drag it to pan.
+    Keys: <kbd>Space</kbd> play/pause, <kbd>←</kbd>/<kbd>→</kbd> 5 s, <kbd>J</kbd>/<kbd>K</kbd> previous/next event,
+    <kbd>+</kbd>/<kbd>−</kbd> zoom, <kbd>[</kbd>/<kbd>]</kbd> previous/next segment.
+  </p>
+</div>
+<script src="/viewer/viewer.js"></script>
+</body>
+</html>

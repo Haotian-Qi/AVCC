@@ -1,0 +1,2547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AVCC annotation</title>
+    <style>
+        * { box-sizing: border-box; }
+        .hidden { display: none !important; }
+
+        body { font-family: system-ui, -apple-system, sans-serif; background: #1e1e1e; color: #eee; margin: 0; padding: 5px; overflow: hidden; }
+        .controls { display: flex; gap: 4px; margin-bottom: 4px; background: #2d2d2d; padding: 4px 5px;
+            border-radius: 6px; align-items: center; font-size: 12px; --ctl-h: 28px; flex-wrap: nowrap; overflow: hidden; }
+        .controls button, .controls select, .controls input,
+        .controls > div, .controls > div > div { height: var(--ctl-h); box-sizing: border-box; }
+        .controls button, .controls select, .controls input {
+            padding: 0 8px; font-size: 12px; border-radius: 4px; line-height: 1; }
+        .controls input[type=range] { padding: 0; width: 110px; }
+        .controls > div, .controls > div > div { display: flex; align-items: center; }
+        .controls > div[style*="margin-left"] { height: auto; }
+        .controls label { font-size: 11px !important; }
+        .controls .panel-toggle { padding: 4px 8px; font-size: 13px; }
+        .controls > *, .controls > div > * { min-width: 0; flex-shrink: 1; }
+        .controls button, .controls span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .controls .panel-toggle, #followPlayheadBtn, #shortcutBtn, #bbModeBtn { flex-shrink: 0; }
+        #segName { font-size: 12.5px; font-weight: bold; padding: 0 8px; color: #ccc; flex-shrink: 4; }
+        #segName .split { font-weight: normal; color: #888; margin-left: 6px; }
+        #bbModeBtn.on { background: #7ED321; color: #000; }
+
+        select, button, input, textarea { padding: 8px; background: #444; color: white; border: 1px solid #555; border-radius: 4px; outline: none; font-family: inherit; }
+        textarea { resize: vertical; }
+
+        button { cursor: pointer; font-weight: bold; border-radius: 4px; }
+        button:hover { background: #555; }
+        .btn-primary { background: #4A90E2; border: none; }
+        .btn-primary:hover { background: #357ABD; }
+        .btn-danger { background: #E02020; border: none; }
+        .btn-danger:hover { background: #C01010; }
+        .btn-success { background: #7ED321; border: none; color: black; }
+        .btn-success:hover { background: #65ab19; }
+
+        .app-row { display: flex; gap: 8px; align-items: stretch; height: calc(100vh - 62px); min-height: 0; }
+        .app-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px;
+            overflow-y: auto; overflow-x: hidden; min-height: 0; }
+
+        /* Left: the videos of one split and their segments */
+        .browser { width: 250px; flex: 0 0 250px; background: #252525; border: 1px solid #444;
+            border-radius: 8px; display: flex; flex-direction: column; overflow: hidden;
+            min-height: 0; transition: flex-basis .18s, width .18s; }
+        .browser.collapsed { flex-basis: 0; width: 0; border: none; }
+        .browser-head { padding: 8px; border-bottom: 1px solid #3a3a3a; }
+        .splits { display: flex; gap: 3px; background: #1a1a1a; padding: 3px; border-radius: 6px; }
+        .splits button { flex: 1; padding: 5px 2px; font-size: 11px; background: transparent;
+            border: none; color: #999; border-radius: 4px; }
+        .splits button.on { background: #4A90E2; color: #fff; }
+        .vlist { overflow-y: auto; flex: 1; }
+        .vrow { display: flex; align-items: center; gap: 6px; padding: 8px 9px; border-bottom: 1px solid #333;
+            cursor: pointer; font-size: 12.5px; font-weight: bold; }
+        .vrow:hover { background: #303030; }
+        .vrow .caret { color: #888; width: 10px; flex: 0 0 auto; }
+        .vrow .vname { flex: 1; word-break: break-all; }
+        .vrow.cur .vname { color: #6fb0ff; }
+        .vrow .count, .segrow .tag { font-size: 10px; font-weight: bold; color: #aaa; background: #3a3a3a;
+            padding: 1px 5px; border-radius: 3px; flex: 0 0 auto; }
+        .segrow { display: flex; align-items: center; gap: 8px; padding: 6px 9px 6px 27px;
+            border-bottom: 1px solid #2c2c2c; cursor: pointer; font-size: 12.5px; }
+        .segrow:hover { background: #303030; }
+        .segrow.cur { background: #2b3f57; box-shadow: inset 3px 0 0 #4A90E2; }
+        .segrow .tag { margin-left: auto; }
+        .vlist .empty { padding: 20px; color: #777; text-align: center; font-size: 12px; }
+
+        .stage-container { display: flex; gap: 20px; margin-bottom: 5px; justify-content: center; align-items: stretch; height: 40.5vh; flex: 0 0 auto; }
+
+        .subtitle-panel {
+            flex: 1; background: #2d2d2d; border-radius: 8px; padding: 15px; border: 1px solid #444;
+            overflow-y: auto; display: flex; flex-direction: column; gap: 10px; contain: layout style;
+        }
+
+        .video-wrapper { flex: 2; display: flex; justify-content: center; background: #000; border-radius: 8px; position: relative; overflow: hidden; }
+        video { width: 100%; height: 100%; object-fit: contain; border-radius: 8px; outline: none; }
+        video.standby { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+        #bboxCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; object-fit: contain; z-index: 5; }
+        #videoMsg { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); z-index: 8; padding: 10px 16px;
+            border-radius: 6px; background: rgba(0,0,0,.8); border: 1px solid #666; color: #ddd; font-size: 13px; text-align: center; }
+
+        .workspace-panel {
+            flex: 1; background: #2d2d2d; border-radius: 8px; padding: 8px; border: 1px solid #444;
+            display: flex; flex-direction: column; overflow-y: auto;
+        }
+        .workspace-panel .workspace-group-vertical label { font-size: 9.5px; letter-spacing: .02em; }
+        .workspace-panel input, .workspace-panel textarea, .workspace-panel select {
+            font-size: 12px !important; padding: 4px 6px !important; }
+        .workspace-panel textarea { min-height: 52px !important; }
+        .workspace-actions-vertical button, .workspace-actions-horizontal button {
+            padding: 5px 8px !important; font-size: 12px; }
+        .panel-toggle { font-size: 16px; line-height: 1; padding: 8px 11px; }
+        .panel-toggle.off { background: #4A90E2; border-color: #4A90E2; }
+
+        .workspace-inputs-vertical { display: flex; flex-direction: column; gap: 6px; flex-grow: 1; }
+        .workspace-group-vertical { display: flex; flex-direction: column; gap: 2px; }
+        .workspace-group-vertical label { font-size: 11px; color: #aaa; text-transform: uppercase; font-weight: bold; }
+        .workspace-group-vertical input, .workspace-group-vertical textarea { font-size: 13px; padding: 8px; width: 100%; background: #222; border: 1px solid #555; }
+        .workspace-actions-vertical { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+        .workspace-actions-horizontal { display: flex; gap: 5px; }
+        .workspace-actions-horizontal button { flex: 1; }
+
+        .subtitle-box {
+            padding: 12px; background: #333; border-radius: 6px; border-left: 4px solid;
+            transition: opacity 0.2s ease; opacity: 1;
+        }
+        .sub-speaker { font-size: 12px; font-weight: bold; margin-bottom: 6px; }
+        .sub-text { font-size: 15px; line-height: 1.6; word-wrap: break-word; min-height: 24px; }
+        .sub-word {
+            cursor: pointer; transition: background 0.1s ease, color 0.1s ease; border-radius: 3px; padding: 2px 4px; display: inline-block; margin: 1px 0;
+        }
+        .sub-word:hover { background: rgba(255, 255, 255, 0.15); }
+        .sub-word.active-word {
+            background: rgba(255, 255, 255, 0.25); color: #fff; font-weight: bold;
+            text-decoration: underline; text-underline-offset: 3px;
+        }
+        .sub-word.past-word { color: #cccccc; }
+        .sub-word.future-word { color: #777777; }
+
+        .minimap-wrapper { background: #1a1a1a; border: 1px solid #444; border-radius: 8px; margin-bottom: 5px; position: relative; cursor: ew-resize; overflow: hidden; padding: 5px 0; flex: 0 0 auto; }
+        #minimapPlayhead { position: absolute; top: 0; bottom: 0; width: 2px; background: red; z-index: 10; pointer-events: none; }
+        #minimapViewport { position: absolute; top: 0; bottom: 0; background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.5); z-index: 5; pointer-events: none; border-radius: 4px; }
+        #minimapCanvas { display: block; width: 100%; }
+
+        .timeline-wrapper { position: relative; overflow-x: auto; background: #2d2d2d; border-radius: 8px; padding: 4px 0 0 0; border: 1px solid #444; margin-bottom: 6px; contain: layout style; flex: 0 0 auto; }
+        .timeline-wrapper { scrollbar-width: thin; scrollbar-color: #555 #2d2d2d; }
+        .timeline-wrapper::-webkit-scrollbar { height: 7px; }
+        .timeline-wrapper::-webkit-scrollbar-track { background: #2d2d2d; }
+        .timeline-wrapper::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+        .timeline-container { position: relative; height: 100%; min-width: 100%; margin-left: 10px; contain: layout style; }
+
+        #globalJumpTrack { width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; cursor: crosshair; margin-bottom: 5px; position: sticky; top: 0; z-index: 15; transition: background 0.2s; }
+        #globalJumpTrack:hover { background: rgba(255,255,255,0.25); }
+
+        #waveformContainer { position: relative; display: block; height: 72px; margin-bottom: 10px; background: #111; border-radius: 4px; pointer-events: none; overflow: hidden; border: 1px solid #333; contain: strict; }
+        .audio-tile { position: absolute; top: 0; height: 100%; display: block; }
+        .audio-tile.stale { z-index: 0; }
+        .audio-tile.fresh { z-index: 1; }
+        #audioStatus { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            color: #888; font-size: 12px; z-index: 2; pointer-events: none; }
+
+        /* Test events: the pause between two words, hold or shift */
+        #eventsTrack { position: relative; height: 18px; margin: -4px 0 16px; }
+        .ev { position: absolute; top: 0; height: 18px; line-height: 18px; padding: 0 3px; border-radius: 3px;
+            font-size: 10px; font-weight: bold; color: #fff; white-space: nowrap; overflow: hidden; cursor: pointer; z-index: 12; }
+        .ev.shift { background: #c0392b; }
+        .ev.hold { background: #2f6db5; }
+        .ev:hover { box-shadow: 0 0 0 2px #fff; }
+
+        .speaker-lane {
+            position: relative; height: 42px; margin-bottom: 6px; background: #333;
+            border-radius: 4px; border-left: 4px solid; display: flex; align-items: center;
+            contain: layout style; transition: background 0.15s, box-shadow 0.15s; cursor: pointer;
+        }
+        .speaker-lane.selected-track {
+            background: #111 !important;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+        }
+        #lanesContainer .speaker-lane:last-child { margin-bottom: 0; }
+        .speaker-label { position: absolute; left: -10px; top: -14px; font-size: 11px; color: #aaa; font-weight: bold; }
+
+        .block {
+            position: absolute; height: 34px; top: 4px; border-radius: 4px; font-size: 12px; color: #fff;
+            cursor: pointer; user-select: none; display: flex; flex-direction: column; justify-content: center; transition: box-shadow 0.2s;
+            overflow: hidden; padding: 0; contain: layout style paint;
+        }
+        .block.dragging { will-change: left, width; }
+        body:not(.drag-edge) .block, body:not(.drag-edge) .handle { cursor: grab; }
+        body:not(.drag-edge) .block.dragging { cursor: grabbing; }
+        .block:hover, .block.selected { box-shadow: 0 0 0 2px #fff; z-index: 10; }
+        .block.multi { box-shadow: 0 0 0 2px #ffd479, inset 0 0 0 999px rgba(255,212,121,.28); z-index: 9; }
+        .block-text { padding: 0 8px; width: 100%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.2; pointer-events: none; }
+        #marquee { position: fixed; border: 1px dashed #ffd479; background: rgba(255,212,121,.12); pointer-events: none; z-index: 60; display: none; }
+        #multiBar { background: #3a3220; border: 1px solid #ffd479; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #ffd479; }
+        #multiBar .row { display: flex; gap: 6px; align-items: center; }
+        #multiBar input { width: 70px; }
+        #multiBar button { padding: 4px 8px; font-size: 12px; }
+        #multiBar .spkbtns { display: flex; flex-wrap: wrap; gap: 4px; }
+
+        .handle { position: absolute; top: 0; bottom: 0; width: 6px; background: rgba(255,255,255,0.3); cursor: ew-resize; z-index: 11; }
+        .handle-left { left: 0; border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
+        .handle-right { right: 0; border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
+        .handle:hover { background: rgba(255,255,255,0.8); }
+
+        #dragLine {
+            position: absolute; top: 0; bottom: 0; width: 1px;
+            background: #00e5ff; z-index: 25; pointer-events: none; display: none;
+            box-shadow: 0 0 6px #00e5ff; will-change: left;
+        }
+        #alignLayer { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
+        .global-align-line {
+            position: absolute; top: 0; bottom: 0; width: 0;
+            border-left: 1px dashed rgba(255, 255, 255, 0.4);
+            z-index: 4; pointer-events: none;
+        }
+        #playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: red; left: 0; z-index: 20; pointer-events: none; will-change: transform; transform: translate3d(0, 0, 0); }
+
+        .options-pop { position: fixed; z-index: 9000; background: #2d2d2d; border: 1px solid #555; border-radius: 8px;
+            padding: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.5); display: flex; flex-direction: column; gap: 8px; width: 330px; }
+        .opt-row { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #ccc; }
+        .opt-row > button, .opt-row > input { width: 92px; flex: 0 0 92px; padding: 6px 8px; font-size: 12px; box-sizing: border-box; }
+        #shortcutOverlay {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 9999;
+            justify-content: center; align-items: center;
+        }
+        .shortcut-modal {
+            background: #2d2d2d; padding: 25px; border-radius: 8px; border: 1px solid #444; width: 560px; max-width: 90%;
+            max-height: 92vh; overflow-y: auto;
+        }
+        .shortcut-list { line-height: 1.5; padding-left: 0; list-style: none; margin: 16px 0; }
+        .shortcut-list li { border-bottom: 1px solid #444; padding: 6px 0; display: flex; justify-content: space-between; gap: 16px; font-size: 13px; }
+        .shortcut-key { background: #444; padding: 3px 8px; border-radius: 4px; font-weight: bold; color: #fff; font-size: 12px; white-space: nowrap; align-self: center; }
+
+        #savedDialog { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+        #savedDialog .box { background: #2d2d2d; border: 1px solid #555; border-radius: 8px; padding: 18px 22px; max-width: 640px;
+            box-shadow: 0 8px 30px rgba(0,0,0,.5); font-size: 14px; }
+        #savedDialog .title { font-weight: bold; font-size: 16px; margin-bottom: 6px; color: #7ee2b1; }
+        #savedDialog ul { padding-left: 18px; margin: 8px 0; }
+        #savedDialog li { margin: 5px 0; }
+        #savedDialog code { font-size: 12px; color: #F5A623; }
+        #savedDialog .note { font-size: 12px; color: #aaa; }
+
+        /* Bbox mode (bbox.js) */
+        #bbEdit { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; z-index: 6; display: none; }
+        body.bbmode #bbEdit { display: block; cursor: crosshair; }
+        body.bbmode #timelineWrapper, body.bbmode #allSubtitles, body.bbmode #workspace { display: none !important; }
+        body.bbmode .stage-container { height: max(40.5vh, calc(100vh - 240px)); }
+        #bbBar { display: none; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; background: #2d2d2d;
+            border: 1px solid #444; border-radius: 8px; padding: 6px 8px; flex: 0 0 auto; }
+        body.bbmode #bbBar { display: flex; }
+        #bbBar select, #bbBar button, #bbBar input { padding: 3px 6px; font-size: 12px; }
+        #bbBar input { width: 72px; }
+        #bbPend { color: #f5a623; font-weight: bold; }
+        #bbBar .help { color: #888; margin-left: auto; }
+        body.bbmode.bbbig .video-wrapper { position: fixed; left: 8px; right: 8px; top: 8px; bottom: 8px; z-index: 900; border: 2px solid #4A90E2; }
+        #bbBigBar { display: none; position: absolute; top: 8px; right: 8px; z-index: 20; gap: 6px; }
+        body.bbmode.bbbig #bbBigBar { display: flex; }
+        #bbBigBar button { padding: 4px 10px; font-size: 12px; background: rgba(0,0,0,0.7); color: #fff; border: 1px solid #666; border-radius: 4px; }
+        #bbMsg { position: fixed; left: 50%; top: 60px; transform: translateX(-50%); background: #333; border: 1px solid #666;
+            padding: 8px 14px; border-radius: 6px; z-index: 9999; font-size: 13px; display: none; max-width: 70vw; }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <button id="toggleListBtn" class="panel-toggle" title="Hide / show the video list (\)">&#9776;</button>
+    <span id="segName">Pick a segment on the left</span>
+    <button id="saveBtn" class="btn-primary hidden" title="Write the words, and the utterances and RTTM made from them">Save</button>
+    <div id="saveProgressContainer" class="hidden" style="width: 120px; height: 10px; background: #222; border-radius: 6px; border: 1px solid #444; overflow: hidden; display: flex; align-items: center;">
+        <div id="saveProgressBar" style="width: 0%; height: 100%; background: #4A90E2; transition: width 0.15s ease-out;"></div>
+    </div>
+    <button id="bbModeBtn" title="Bbox mode: edit the face boxes (E)">BBox</button>
+    <button id="followPlayheadBtn" title="Scroll the timeline back to the playhead (P)" aria-label="Playhead">&#8857;</button>
+    <button id="shortcutBtn" class="btn-primary" title="Keyboard shortcuts">?</button>
+    <button id="optionsBtn" title="Waveform or spectrogram, alignment lines, FPS">&#9881; Options</button>
+
+    <div style="display: flex; align-items: center; gap: 5px; background: #222; padding: 6px 10px; border-radius: 4px; border: 1px solid #555;">
+        <span style="font-size: 11px; color: #aaa; text-transform: uppercase; font-weight: bold;">Spd:</span>
+        <span id="playbackSpeedDisplay" style="font-weight: bold; color: #fff;">1.0x</span>
+    </div>
+
+    <div style="margin-left: auto; display: flex; align-items: center; gap: 15px;">
+        <div style="display: flex; align-items: center; gap: 5px;">
+            <label for="zoomSlider" style="font-size: 14px;">Zoom:</label>
+            <input type="range" id="zoomSlider" min="10" max="500" value="100">
+        </div>
+    </div>
+</div>
+
+<div id="optionsPop" class="options-pop hidden">
+    <div class="opt-row"><button id="toggleAlignBtn">Align</button>
+        <span>Show / hide a line at every word edge</span></div>
+    <div class="opt-row"><button id="toggleAudioDisplayBtn" title="Switch between waveform and spectrogram">Spec</button>
+        <span>Waveform or spectrogram</span></div>
+    <div class="opt-row"><button id="refreshAudioBtn" class="btn-success" title="Redraw the audio strip and retry a failed load">Refresh</button>
+        <span>Redraw the audio view for what is on screen</span></div>
+    <div class="opt-row"><input type="number" id="fpsInput" value="25">
+        <span>FPS (frame stepping and the bbox overlay)</span></div>
+</div>
+
+<div class="app-row">
+<aside class="browser" id="browser">
+    <div class="browser-head">
+        <div class="splits" id="splitTabs">
+            <button data-s="train" class="on">Train</button><button data-s="val">Val</button><button data-s="test">Test</button>
+        </div>
+    </div>
+    <div class="vlist" id="videoList"><div class="empty">Loading&hellip;</div></div>
+</aside>
+<div class="app-col">
+<div class="stage-container">
+
+    <div class="subtitle-panel hidden" id="allSubtitles">
+        <div id="subtitlesContent" style="display: flex; flex-direction: column; gap: 10px;"></div>
+    </div>
+
+    <div class="video-wrapper">
+        <video id="videoPlayer" controls></video>
+        <video id="videoStandby" class="standby" preload="metadata"></video>
+        <video id="videoStandby2" class="standby" preload="metadata"></video>
+        <canvas id="bboxCanvas"></canvas>
+        <canvas id="bbEdit"></canvas>
+        <div id="bbBigBar">
+            <button data-a="fix" title="J">Fix jump (J)</button><button data-a="undo" title="Ctrl+Z">Undo</button>
+            <button data-a="save" title="Ctrl+S">Save bbox</button><button data-a="big" title="Z">Exit big (Z)</button>
+        </div>
+        <div id="videoMsg" class="hidden"></div>
+    </div>
+
+    <div class="workspace-panel hidden" id="workspace">
+        <div class="workspace-inputs-vertical">
+            <div id="multiBar" class="hidden">
+                <div class="row"><b id="multiCount"></b><span style="flex:1"></span><button id="multiClear" title="Esc">Clear</button></div>
+                <div class="spkbtns" id="multiSpkBtns"></div>
+                <div class="row">Speaker <input type="text" id="multiSpk" title="Type a speaker ID, Enter"><button id="multiSet">Set all</button></div>
+                <div style="color:#bba">Drag on empty lane space to select; Shift/Ctrl adds. &uarr;/&darr; moves all a lane. Ctrl+Z undoes.</div>
+            </div>
+            <div class="workspace-group-vertical">
+                <label>Speaker ID</label>
+                <input type="text" id="wsSpeaker">
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <div class="workspace-group-vertical" style="flex: 1;">
+                    <label>Start (s)</label>
+                    <input type="number" step="0.01" id="wsStart">
+                </div>
+                <div class="workspace-group-vertical" style="flex: 1;">
+                    <label>End (s)</label>
+                    <input type="number" step="0.01" id="wsEnd">
+                </div>
+            </div>
+            <div class="workspace-group-vertical" style="flex-grow: 1;">
+                <label>Word</label>
+                <textarea id="wsText" style="flex-grow: 1; min-height: 80px; resize: none;"></textarea>
+            </div>
+        </div>
+
+        <div class="workspace-actions-vertical">
+            <div class="workspace-actions-horizontal">
+                <div id="edgeModeIndicator" title=", / . or wheel up / down over the selected word move its left / right edge by 0.01 s. Caps Lock off = extend, on = shrink. The lit side is the edge last moved. Dragging: Caps Lock off = the end handles drag that edge, on = drag anywhere on a word to move it." style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 4px; font-size: 12px; font-weight: bold;"></div>
+                <button id="autoSplitBtn" title="On: B also splits the text, the left piece keeps the first word and the right piece the rest. Off: both pieces keep the whole text."></button>
+            </div>
+            <div class="workspace-actions-horizontal">
+                <button id="wsApply" class="btn-primary">Update</button>
+                <button id="wsAdd" class="btn-primary hidden">Add New</button>
+            </div>
+            <div class="workspace-actions-horizontal">
+                <button id="wsDelete" class="btn-danger">Delete</button>
+                <div style="display: flex; gap: 8px; flex: 1;">
+                    <button id="wsSnapLeft" class="btn-primary" title="Snap start to the end of the previous word on this lane" style="flex: 1; font-size: 16px;">&larr;</button>
+                    <button id="wsSnapRight" class="btn-primary" title="Snap end to the start of the next word on this lane" style="flex: 1; font-size: 16px;">&rarr;</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="minimap-wrapper" id="minimapWrapper" style="display: none;">
+    <div id="minimapContainer"></div>
+    <div id="minimapViewport"></div>
+    <div id="minimapPlayhead"></div>
+</div>
+
+<div class="timeline-wrapper" id="timelineWrapper" style="display: none;">
+    <div class="timeline-container" id="timelineContainer">
+        <div id="playhead"></div>
+        <div id="dragLine"></div>
+        <div id="globalJumpTrack" title="Click to seek"></div>
+        <div id="waveformContainer"><div id="audioStatus"></div></div>
+        <div id="eventsTrack" class="hidden"></div>
+        <div id="lanesContainer"></div>
+        <div id="alignLayer"></div>
+    </div>
+</div>
+
+<div id="bbBar">
+    <label>Scope <select id="bbScope" title="How far an edit spreads from the current frame">
+        <option value="frame">this frame</option><option value="1">+1 s</option><option value="5">+5 s</option>
+        <option value="10">+10 s</option><option value="end">to end</option><option value="start">from start</option>
+        <option value="mark">frame range</option><option value="seg">whole segment</option>
+    </select></label>
+    <span title="Type the first and last frame and press Enter (Scope switches to frame range); [ and ] set them to the current frame">Frames
+        <input id="bbMarkA" type="number" min="0" step="1" placeholder="start"> &ndash;
+        <input id="bbMarkB" type="number" min="0" step="1" placeholder="end"></span>
+    <span title="Swap the boxes of two IDs over the scope">Swap
+        <select id="bbSwA"><option>0</option><option>1</option><option>2</option><option>B</option></select> &harr;
+        <select id="bbSwB"><option>0</option><option selected>1</option><option>2</option><option>B</option></select>
+        <button id="bbSwap">in scope</button></span>
+    <button id="bbFix" title="This frame only: the selected ID's box becomes the dashed one, its last box before this frame (J)">Fix jump (J)</button>
+    <button id="bbUndo" title="Ctrl+Z">Undo</button>
+    <button id="bbBig" title="Video almost full screen, for drawing (Z)">Big (Z)</button>
+    <span id="bbPend"></span>
+    <button id="bbSave" class="btn-primary" title="Write the bbox file (Ctrl+S)">Save bbox</button>
+    <span class="help">0 1 2 B pick ID &middot; drag on the video: draw / move / resize &middot; Del delete &middot; , . frame (Shift: 5) &middot; [ ] range &middot; Esc deselect &middot; E exit</span>
+</div>
+
+</div>
+</div>
+
+<div id="shortcutOverlay">
+    <div class="shortcut-modal">
+        <h2 style="margin-top: 0; color: #4A90E2; border-bottom: 2px solid #444; padding-bottom: 10px;">Keyboard Shortcuts</h2>
+        <ul class="shortcut-list">
+            <li><span>Play / Pause</span> <span class="shortcut-key">Space</span></li>
+            <li><span>Word selected: edit its text (Enter again applies it). Nothing selected: select the word under the playhead on the current lane</span> <span class="shortcut-key">Enter</span></li>
+            <li><span>Deselect / leave a text field</span> <span class="shortcut-key">Escape</span></li>
+            <li><span>Switch speaker lane; a selected word or group moves to it</span> <span class="shortcut-key">&uarr; / &darr;</span></li>
+            <li><span>Move the selected word by 0.01 s</span> <span class="shortcut-key">&larr; / &rarr;</span></li>
+            <li><span>Snap start to the previous word's end / end to the next word's start</span> <span class="shortcut-key">Shift+&larr; / Shift+&rarr;</span></li>
+            <li><span>Word selected: extend the left / right edge by 0.01 s (Caps Lock on: shrink)</span> <span class="shortcut-key">, / .</span></li>
+            <li><span>Wheel over the selected word: up = left edge, down = right edge; extend, or shrink with Caps Lock on (0.01 s, Shift 0.05 s)</span> <span class="shortcut-key">Wheel</span></li>
+            <li><span>Drag a word: the end handles drag that edge; Caps Lock on: grab it anywhere to move it</span> <span class="shortcut-key">Drag</span></li>
+            <li><span>Select a group: drag a window over empty lane space (Shift/Ctrl adds, Ctrl+click toggles one word); &uarr;/&darr; or the yellow bar sets their speaker</span> <span class="shortcut-key">Drag</span></li>
+            <li><span>Nothing selected: previous / next frame (Shift: 5 frames)</span> <span class="shortcut-key">, / .</span></li>
+            <li><span>Next / previous word on the current lane</span> <span class="shortcut-key">Tab / Shift+Tab</span></li>
+            <li><span>Add a word at the playhead</span> <span class="shortcut-key">+ / =</span></li>
+            <li><span>Split at the playhead: the selected word, else the one on the current lane; selects the right piece (Auto-split on: the left piece keeps the first word, the right piece the rest)</span> <span class="shortcut-key">B</span></li>
+            <li><span>Delete the selected word</span> <span class="shortcut-key">Delete</span></li>
+            <li><span>Undo the last delete, split or group speaker change (up to 10)</span> <span class="shortcut-key">Ctrl+Z</span></li>
+            <li><span>Scroll the timeline back to the playhead</span> <span class="shortcut-key">P</span></li>
+            <li><span>Playback speed, 0.5x to 3.0x (works while typing)</span> <span class="shortcut-key">PgUp / PgDn</span></li>
+            <li><span>Hide / show the video list</span> <span class="shortcut-key">\</span></li>
+            <li><span>Bbox mode: edit the face boxes (its keys are listed on its bar)</span> <span class="shortcut-key">E</span></li>
+        </ul>
+        <div style="text-align: right; margin-top: 20px;">
+            <button id="closeShortcutBtn" class="btn-primary">Close</button>
+        </div>
+    </div>
+</div>
+<div id="bbMsg"></div>
+
+<script id="audioTileSrc">
+// Draws one tile of the audio strip. The same text runs as a Web Worker built from this
+// tag, and on the page itself when OffscreenCanvas is missing. A window is
+// {data: Float32Array mono, sr, start (s)}; x0 is the tile's left edge in timeline pixels.
+const AudioTile = (() => {
+    const H = 128;
+    const FFT = 512;
+    const hann = new Float32Array(FFT);
+    for (let i = 0; i < FFT; i++) hann[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (FFT - 1)));
+    const rowsBySr = {};
+
+    // Mel-spaced rows from 50 Hz to 5 kHz, so pitch and F1 get about half the height.
+    function rows(sr) {
+        if (rowsBySr[sr]) return rowsBySr[sr];
+        const half = FFT / 2, minF = 50, maxF = Math.min(5000, sr / 2), binHz = sr / FFT;
+        const mel = f => 2595 * Math.log10(1 + f / 700);
+        const imel = m => 700 * (Math.pow(10, m / 2595) - 1);
+        const lo = new Int32Array(H), hi = new Int32Array(H);
+        for (let y = 0; y < H; y++) {
+            const r = H - 1 - y;
+            const f0 = imel(mel(minF) + (mel(maxF) - mel(minF)) * r / H);
+            const f1 = imel(mel(minF) + (mel(maxF) - mel(minF)) * (r + 1) / H);
+            lo[y] = Math.min(half - 1, Math.round(f0 / binHz));
+            hi[y] = Math.min(half - 1, Math.max(lo[y], Math.round(f1 / binHz) - 1));
+        }
+        return (rowsBySr[sr] = { lo, hi });
+    }
+
+    function fft(real, imag) {
+        const n = real.length;
+        for (let i = 0, j = 0; i < n; i++) {
+            if (i < j) {
+                let t = real[i]; real[i] = real[j]; real[j] = t;
+                t = imag[i]; imag[i] = imag[j]; imag[j] = t;
+            }
+            let m = n >> 1;
+            while (m >= 1 && j >= m) { j -= m; m >>= 1; }
+            j += m;
+        }
+        for (let step = 2; step <= n; step <<= 1) {
+            const halfStep = step >> 1, angle = -2 * Math.PI / step;
+            const wrs = Math.cos(angle), wis = Math.sin(angle);
+            for (let i = 0; i < n; i += step) {
+                let wr = 1, wi = 0;
+                for (let k = 0; k < halfStep; k++) {
+                    const a = i + k, b = a + halfStep;
+                    const tr = wr * real[b] - wi * imag[b], ti = wr * imag[b] + wi * real[b];
+                    real[b] = real[a] - tr; imag[b] = imag[a] - ti;
+                    real[a] += tr; imag[a] += ti;
+                    const nwr = wr * wrs - wi * wis; wi = wr * wis + wi * wrs; wr = nwr;
+                }
+            }
+        }
+    }
+
+    const LUT = new Uint8Array(256 * 3);
+    for (let k = 0; k < 256; k++) {
+        const v = k / 255; let r, g, b;
+        if (v < 0.25) { const t = v / 0.25; r = t * 80; g = 0; b = t * 120; }
+        else if (v < 0.6) { const t = (v - 0.25) / 0.35; r = 80 + t * 175; g = t * 50; b = 120 - t * 100; }
+        else if (v < 0.85) { const t = (v - 0.6) / 0.25; r = 255; g = 50 + t * 180; b = 20 - t * 20; }
+        else { const t = (v - 0.85) / 0.15; r = 255; g = 230 + t * 25; b = t * 255; }
+        LUT[k * 3] = r; LUT[k * 3 + 1] = g; LUT[k * 3 + 2] = b;
+    }
+
+    function spectrogram(ctx, win, x0, W, scale) {
+        const { data, sr } = win, { lo, hi } = rows(sr);
+        const spp = sr / scale, off = Math.round(win.start * sr);
+        const img = ctx.createImageData(W, H), px = img.data;
+        const mags = new Float32Array(W * H), rms = new Float32Array(W);
+        const real = new Float32Array(FFT), imag = new Float32Array(FFT);
+        let maxDb = -Infinity;
+        for (let x = 0; x < W; x++) {
+            const s0 = Math.floor((x0 + x) * spp) - off - (FFT >> 1);
+            let sumSq = 0;
+            for (let i = 0; i < FFT; i++) {
+                const idx = s0 + i;
+                const v = idx >= 0 && idx < data.length ? data[idx] : 0;
+                sumSq += v * v; real[i] = v * hann[i]; imag[i] = 0;
+            }
+            rms[x] = Math.sqrt(sumSq / FFT);
+            fft(real, imag);
+            for (let y = 0; y < H; y++) {
+                let pow = 0;
+                for (let b = lo[y]; b <= hi[y]; b++) {
+                    const p = real[b] * real[b] + imag[b] * imag[b];
+                    if (p > pow) pow = p;
+                }
+                const db = 10 * Math.log10(pow + 1e-10);
+                mags[x * H + y] = db;
+                if (db > maxDb) maxDb = db;
+            }
+        }
+        if (maxDb < -35) maxDb = -35;
+        // 45 dB with a 0.65 gamma, so quiet sounds (hmm, mhm, breath) still show.
+        const range = 45, minDb = maxDb - range;
+        for (let x = 0; x < W; x++) {
+            for (let y = 0; y < H; y++) {
+                let n = (mags[x * H + y] - minDb) / range;
+                n = n <= 0 ? 0 : n >= 1 ? 1 : Math.pow(n, 0.65);
+                const k = (n * 255 | 0) * 3, p = (y * W + x) * 4;
+                px[p] = LUT[k]; px[p + 1] = LUT[k + 1]; px[p + 2] = LUT[k + 2]; px[p + 3] = 255;
+            }
+        }
+        ctx.putImageData(img, 0, 0);
+        const maxRms = Math.max(0.001, win.rmsMax || 0);
+        ctx.strokeStyle = 'rgba(124, 251, 255, 0.45)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let x = 0; x < W; x++) {
+            const y = H - Math.min(H, (rms[x] / maxRms) * H);
+            if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+    }
+
+    function waveform(ctx, win, x0, W, scale) {
+        const { data, sr } = win, norm = win.norm || 0.0001;
+        const amp = H / 2, spp = sr / (scale * 2), off = Math.round(win.start * sr);
+        ctx.fillStyle = '#6ab04c';
+        for (let i = 0; i < W * 2; i++) {
+            const abs = x0 * 2 + i;
+            const s = Math.floor(abs * spp) - off;
+            let e = Math.floor((abs + 1) * spp) - off;
+            if (e === s) e = s + 1;
+            let mn = 1, mx = -1;
+            for (let j = Math.max(0, s); j < e && j < data.length; j++) {
+                let v = data[j] / norm;
+                if (v > 1) v = 1; else if (v < -1) v = -1;
+                if (v < mn) mn = v;
+                if (v > mx) mx = v;
+            }
+            if (mn <= mx) ctx.fillRect(i, (1 + mn) * amp, 1, Math.max(1, (mx - mn) * amp));
+        }
+    }
+
+    // Once per window: the waveform's full scale and the loudness contour's full scale.
+    function prepare(win) {
+        const d = win.data, peaks = [];
+        let rmsMax = 0;
+        for (let i = 0; i < d.length; i += 2048) {
+            let pk = 0;
+            const end = Math.min(d.length, i + 2048);
+            for (let j = i; j < end; j++) { const a = Math.abs(d[j]); if (a > pk) pk = a; }
+            peaks.push(pk);
+        }
+        for (let i = 0; i + FFT <= d.length; i += FFT) {
+            let ss = 0;
+            for (let j = i; j < i + FFT; j++) ss += d[j] * d[j];
+            const r = Math.sqrt(ss / FFT); if (r > rmsMax) rmsMax = r;
+        }
+        peaks.sort((a, b) => a - b);
+        win.norm = peaks[Math.floor(peaks.length * 0.85)] || 0.0001;
+        win.rmsMax = rmsMax;
+    }
+
+    return { H, spectrogram, waveform, prepare };
+})();
+
+if (typeof document === 'undefined') {
+    const wins = new Map();
+    self.onmessage = e => {
+        const m = e.data;
+        if (m.type === 'win') { AudioTile.prepare(m.win); wins.set(m.win.id, m.win); }
+        else if (m.type === 'drop') wins.delete(m.id);
+        else if (m.type === 'reset') wins.clear();
+        else if (m.type === 'tile') {
+            const win = wins.get(m.winId);
+            if (!win) { self.postMessage({ key: m.key, gen: m.gen, error: 'no window' }); return; }
+            const cv = new OffscreenCanvas(m.mode === 'waveform' ? m.W * 2 : m.W, AudioTile.H);
+            AudioTile[m.mode](cv.getContext('2d'), win, m.x0, m.W, m.scale);
+            const bmp = cv.transferToImageBitmap();
+            self.postMessage({ key: m.key, gen: m.gen, bmp }, [bmp]);
+        }
+    };
+}
+</script>
+
+<script>
+    let scale = 100;
+    let videoFPS = 25;
+    const colors = ['#4A90E2', '#E02020', '#F5A623', '#7ED321', '#BD10E0'];
+
+    let splits = {};
+    let listTab = 'train';
+    const openVideos = new Set();
+    let currentData = [];
+    let activeSpeakers = [];
+    let bboxData = {};
+    let events = [];
+    let selectedIndex = -1;
+    let multiSel = new Set();
+    let currentVid = '';
+    let currentSeg = '';
+    let selectedTrack = "0";
+    let savedWords = '';
+
+    // Per speaker: the words sorted by start plus the longest duration, so the words that
+    // overlap a time range are a binary search away. Rebuilt by renderTimeline.
+    let laneIndex = {};
+    let speakerOrder = [];
+    let laneEls = {};
+    let elByItem = new Map();
+    let timelineWidthPx = 0;
+
+    let lastSpeakerSignatures = {};
+    let isDragging = false;
+    let dragType = '';
+    let dragIndex = -1;
+    let activeDragElement = null;
+    let dragGrab = 0;
+    let showGlobalAlignLines = false;
+    let audioDisplayMode = 'spectrogram';
+    let playheadAnimationFrame = null;
+    let lastContextUpdateTime = -Infinity;
+    let lastMinimapUpdateTime = -Infinity;
+    let lastBBoxFrame = -1;
+
+    // The audio is fetched in windows of 300 s that start every 150 s, so any stretch up
+    // to 150 s lies inside one. A few are kept, and the samples live in the tile workers.
+    const AUDIO_WINDOW = 300;
+    const AUDIO_SR = 16000;
+    const AUDIO_KEEP_WINDOWS = 3;
+    const TILE_CACHE = 64;
+    let audioError = "";
+    const audio = {
+        gen: 0,
+        seq: 0,
+        wins: new Map(),
+        loading: new Map(),
+        tiles: new Map(),
+        inflight: new Set(),
+        want: [],
+        renderers: [], idle: [],
+    };
+
+    // Three players on one file. `video` is the one on screen. Two spares wait out of sight,
+    // paused and decoded: spare.loop at the selected word's start (its replay) and spare.click
+    // at the word under the mouse. Showing a parked player is much faster than a seek.
+    // Listen through onVideo(), which follows the one on screen.
+    let video = document.getElementById('videoPlayer');
+    const players = [video, document.getElementById('videoStandby'), document.getElementById('videoStandby2')];
+    const spare = { loop: players[1], click: players[2] };
+    function onVideo(type, fn) {
+        for (const el of players) el.addEventListener(type, e => { if (e.target === video) fn(e); });
+    }
+    const bboxCanvas = document.getElementById('bboxCanvas');
+    const bboxCtx = bboxCanvas.getContext('2d');
+    const playhead = document.getElementById('playhead');
+    const wrapper = document.getElementById('timelineWrapper');
+    const allSubtitles = document.getElementById('allSubtitles');
+    const subtitlesContent = document.getElementById('subtitlesContent');
+    const workspace = document.getElementById('workspace');
+
+    const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const store = {
+        get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
+        set(k, v) { try { localStorage.setItem(k, v); } catch (_) {} },
+    };
+
+    document.getElementById('shortcutBtn').addEventListener('click', () => {
+        document.getElementById('shortcutOverlay').style.display = 'flex';
+    });
+    document.getElementById('closeShortcutBtn').addEventListener('click', () => {
+        document.getElementById('shortcutOverlay').style.display = 'none';
+    });
+    document.getElementById('shortcutOverlay').addEventListener('mousedown', (e) => {
+        if (e.target === document.getElementById('shortcutOverlay')) {
+            document.getElementById('shortcutOverlay').style.display = 'none';
+        }
+    });
+
+    const optionsPop = document.getElementById('optionsPop'), optionsBtn = document.getElementById('optionsBtn');
+    function toggleOptions(show = optionsPop.classList.contains('hidden')) {
+        if (show) {
+            const r = optionsBtn.getBoundingClientRect();
+            optionsPop.style.top = `${r.bottom + 6}px`;
+            optionsPop.style.left = `${Math.max(6, Math.min(r.left, window.innerWidth - 342))}px`;
+        }
+        optionsPop.classList.toggle('hidden', !show);
+        optionsBtn.blur();
+    }
+    optionsBtn.addEventListener('click', () => toggleOptions());
+    document.addEventListener('mousedown', e => {
+        if (!optionsPop.classList.contains('hidden') && !optionsPop.contains(e.target) && e.target !== optionsBtn) toggleOptions(false);
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') toggleOptions(false); });
+    // Space and Enter are shortcuts, so a button clicked in here must not keep the focus.
+    optionsPop.addEventListener('click', e => { if (e.target.tagName === 'BUTTON') e.target.blur(); });
+
+    document.getElementById('fpsInput').addEventListener('change', e => {
+        videoFPS = parseInt(e.target.value) || 25;
+        drawBBoxes(video.currentTime);
+    });
+
+    document.getElementById('toggleAlignBtn').addEventListener('click', (e) => {
+        showGlobalAlignLines = !showGlobalAlignLines;
+        e.target.style.backgroundColor = showGlobalAlignLines ? "#7ED321" : "";
+        e.target.style.color = showGlobalAlignLines ? "#000" : "";
+        renderVisible();
+    });
+
+    const audioDisplayBtn = document.getElementById('toggleAudioDisplayBtn');
+    function paintAudioDisplayBtn() {
+        audioDisplayBtn.innerText = audioDisplayMode === 'spectrogram' ? "Spec" : "Wave";
+        audioDisplayBtn.style.backgroundColor = audioDisplayMode === 'spectrogram' ? "#BD10E0" : "";
+    }
+    audioDisplayBtn.addEventListener('click', () => {
+        audioDisplayMode = audioDisplayMode === 'waveform' ? 'spectrogram' : 'waveform';
+        paintAudioDisplayBtn();
+        updateAudioTiles();
+    });
+    paintAudioDisplayBtn();
+
+    document.getElementById('refreshAudioBtn').addEventListener('click', () => {
+        audioError = "";
+        clearAudioTiles();
+        updateAudioTiles();
+    });
+
+    function initWordLevelBoxes() {
+        subtitlesContent.innerHTML = '';
+        lastSpeakerSignatures = {};
+        getUniqueSpeakersObjOrder().forEach((spk, sIdx) => {
+            const color = colors[sIdx % colors.length];
+            const safe = spk.replace(/[^a-zA-Z0-9]/g, '_');
+            const subBox = document.createElement('div');
+            subBox.id = `word-mode-spk-${safe}`;
+            subBox.className = 'subtitle-box';
+            subBox.style.borderLeftColor = color;
+            subBox.innerHTML = `
+                <div class="sub-speaker" style="color:${color}">Speaker ${esc(spk)}</div>
+                <div class="sub-text" id="word-mode-text-${safe}"><span style="color:#666; font-style:italic;">...</span></div>
+            `;
+            subtitlesContent.appendChild(subBox);
+        });
+    }
+    subtitlesContent.addEventListener('click', e => {
+        const w = e.target.closest('.sub-word');
+        if (w) seekTo(parseFloat(w.dataset.t), true, true);
+    });
+
+    // ---- left panel: videos and segments of one split ----
+    function fillList() {
+        const list = document.getElementById('videoList');
+        const vids = splits[listTab] || [];
+        list.textContent = '';
+        if (!vids.length) { list.innerHTML = '<div class="empty">No videos in this split</div>'; return; }
+        for (const v of vids) {
+            const open = openVideos.has(v.video);
+            const head = document.createElement('div');
+            head.className = 'vrow' + (v.video === currentVid ? ' cur' : '');
+            head.innerHTML = `<span class="caret">${open ? '&#9662;' : '&#9656;'}</span><span class="vname"></span><span class="count"></span>`;
+            head.querySelector('.vname').textContent = v.video;
+            head.querySelector('.count').textContent = v.segs.length;
+            head.addEventListener('click', () => {
+                if (open) openVideos.delete(v.video); else openVideos.add(v.video);
+                fillList();
+            });
+            list.appendChild(head);
+            if (!open) continue;
+            for (const s of v.segs) {
+                const row = document.createElement('div');
+                row.className = 'segrow' + (v.video === currentVid && s.seg === currentSeg ? ' cur' : '');
+                row.textContent = s.seg;
+                if (s.events) {
+                    const tag = document.createElement('span');
+                    tag.className = 'tag';
+                    tag.textContent = `${s.events} events`;
+                    row.appendChild(tag);
+                }
+                row.addEventListener('click', () => openSegment(v.video, s.seg, listTab));
+                list.appendChild(row);
+            }
+        }
+    }
+
+    document.getElementById('splitTabs').addEventListener('click', e => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        listTab = b.dataset.s;
+        [...e.currentTarget.children].forEach(x => x.classList.toggle('on', x === b));
+        b.blur();
+        fillList();
+    });
+
+    fetch('api/list', { cache: 'no-store' })
+        .then(r => r.json())
+        .then(j => {
+            if (j.error) throw new Error(j.error);
+            splits = j;
+            fillList();
+        })
+        .catch(e => { document.getElementById('videoList').innerHTML = `<div class="empty">Could not load the list: ${esc(e.message)}</div>`; });
+
+    function wordsText() {
+        return [...currentData].sort((a, b) => a.start - b.start)
+            .map(w => `${w.speaker}\t${w.start.toFixed(3)}\t${w.duration.toFixed(3)}\t${(w.text || '').replace(/\s+/g, ' ').trim()}`)
+            .join('\n');
+    }
+    const unsavedWords = () => !!currentSeg && wordsText() !== savedWords;
+
+    function openSegment(vid, seg, split) {
+        if (vid === currentVid && seg === currentSeg) return;
+        if (unsavedWords() && !confirm(`${currentVid} ${currentSeg} has word edits that are not saved.\n\nOpen ${vid} ${seg} and drop them?`)) return;
+        currentVid = vid;
+        currentSeg = seg;
+        // Drop the previous segment's words and boxes now: the new video can report its
+        // length before the new words arrive, and a selected word would pull the playhead.
+        currentData = [];
+        activeSpeakers = [];
+        undoStack = [];
+        multiSel = new Set();
+        document.getElementById('multiBar').classList.add('hidden');
+        selectedIndex = -1;
+        cancelReplay();
+        bboxData = {};
+        events = [];
+        openVideos.add(vid);
+        fillList();
+        const name = document.getElementById('segName');
+        name.innerHTML = `${esc(vid)} / ${esc(seg)}<span class="split">${esc(split || '')}</span>`;
+        document.getElementById('videoMsg').classList.add('hidden');
+        document.getElementById('saveBtn').innerText = 'Save';
+
+        const path = `${encodeURIComponent(vid)}/${encodeURIComponent(seg)}`;
+        const videoUrl = `videos/${path}.mp4`;
+        video.src = videoUrl;
+        for (const el of players) if (el !== video) el.src = videoUrl;
+        unparkAll();
+
+        lastBBoxFrame = -1;
+        lastContextUpdateTime = -Infinity;
+        lastMinimapUpdateTime = -Infinity;
+        wrapper.scrollLeft = 0;
+        resetAudio();
+        fetchAudioWindow(0);
+
+        const key = vid + '/' + seg;
+        const text = url => fetch(url, { cache: 'no-store' }).then(r => {
+            if (r.ok) return r.text();
+            if (r.status === 404) return '';
+            throw new Error(`${url}: HTTP ${r.status}`);
+        });
+        Promise.all([
+            text(`word/${path}.txt`),
+            text(`bbox/${path}.csv`),
+            fetch(`api/events?video=${encodeURIComponent(vid)}&seg=${encodeURIComponent(seg)}`, { cache: 'no-store' })
+                .then(r => r.ok ? r.json() : []),
+        ]).then(([words, boxes, evs]) => {
+            if (key !== currentVid + '/' + currentSeg) return;
+            parseWords(words);
+            parseBBox(boxes);
+            events = evs;
+            savedWords = wordsText();
+            renderTimeline();
+            document.getElementById('saveBtn').classList.remove('hidden');
+            workspace.classList.remove('hidden');
+            allSubtitles.classList.remove('hidden');
+            resetWorkspaceForNew();
+            initWordLevelBoxes();
+        }).catch(err => {
+            if (key !== currentVid + '/' + currentSeg) return;
+            currentData = [];
+            activeSpeakers = [];
+            multiSel = new Set();
+            events = [];
+            savedWords = wordsText();
+            renderTimeline();
+            document.getElementById('saveBtn').classList.add('hidden');
+            workspace.classList.add('hidden');
+            allSubtitles.classList.add('hidden');
+            alert(`Could not load ${key}: ${err.message}`);
+        });
+    }
+
+    onVideo('error', () => {
+        if (!currentSeg) return;
+        const m = document.getElementById('videoMsg');
+        m.textContent = `No video at videos/${currentVid}/${currentSeg}.mp4`;
+        m.classList.remove('hidden');
+    });
+    onVideo('loadeddata', () => document.getElementById('videoMsg').classList.add('hidden'));
+
+    document.getElementById('globalJumpTrack').addEventListener('mousedown', (e) => {
+        const rect = document.getElementById('timelineContainer').getBoundingClientRect();
+        video.currentTime = Math.max(0, (e.clientX - rect.left) / scale);
+    });
+
+    function parseBBox(csvText) {
+        bboxData = {};
+        if (!csvText) return;
+        const lines = csvText.trim().split('\n');
+        const startIdx = lines[0].includes('frame_idx') ? 1 : 0;
+        for (let i = startIdx; i < lines.length; i++) {
+            if (!lines[i].trim()) continue;
+            const cols = lines[i].split(',');
+            if (cols.length < 6) continue;
+            const frame = parseInt(cols[0]);
+            const spk = cols[1].trim();
+            const x1 = parseFloat(cols[2]), y1 = parseFloat(cols[3]);
+            const x2 = parseFloat(cols[4]), y2 = parseFloat(cols[5]);
+            if (!bboxData[frame]) bboxData[frame] = [];
+            bboxData[frame].push({ spk, x1, x2, y1, y2 });
+        }
+    }
+
+    function getActiveDuration() {
+        if (video.duration && !isNaN(video.duration) && video.duration > 0) return video.duration;
+        let maxDataTime = 0;
+        currentData.forEach(item => { if (item.start + item.duration > maxDataTime) maxDataTime = item.start + item.duration; });
+        return maxDataTime > 0 ? maxDataTime : 1;
+    }
+
+    function handleVideoLoad() {
+        renderTimeline();
+        drawBBoxes(video.currentTime);
+    }
+    onVideo('loadedmetadata', handleVideoLoad);
+    onVideo('durationchange', handleVideoLoad);
+
+    // Zoom keeps the playhead where it is on screen (or the view centre when the playhead
+    // is off screen), applied once per frame however fast the slider moves.
+    let zoomRaf = null;
+    document.getElementById('zoomSlider').addEventListener('input', e => {
+        const next = parseInt(e.target.value);
+        if (zoomRaf !== null) cancelAnimationFrame(zoomRaf);
+        zoomRaf = requestAnimationFrame(() => {
+            zoomRaf = null;
+            if (next === scale) return;
+            const w = wrapper.clientWidth, ph = video.currentTime * scale - wrapper.scrollLeft;
+            const anchorPx = ph >= 0 && ph <= w ? ph : w / 2;
+            const anchorT = (wrapper.scrollLeft + anchorPx) / scale;
+            scale = next;
+            renderTimeline(false);
+            wrapper.scrollLeft = Math.max(0, anchorT * scale - anchorPx);
+            renderVisible();
+            updatePlayhead();
+        });
+    });
+
+    // Ctrl+Z undoes the last delete, split or group speaker change, newest first.
+    const UNDO_MAX = 10;
+    let undoStack = [];
+    function pushUndo(entry) {
+        undoStack.push(entry);
+        if (undoStack.length > UNDO_MAX) undoStack.shift();
+    }
+    function undoLast() {
+        const u = undoStack.pop();
+        if (!u) return;
+        if (u.speakers) {
+            for (const [item, spk] of u.speakers) item.speaker = spk;
+            multiSel = new Set(u.speakers.map(x => x[0]));
+            paintMulti();
+            return;
+        }
+        for (const p of u.pieces || []) {
+            const i = currentData.indexOf(p);
+            if (i !== -1) currentData.splice(i, 1);
+        }
+        currentData.push(u.word);
+        currentData.sort((a, b) => a.start - b.start);
+        selectWord(currentData.indexOf(u.word));
+    }
+
+    function applyWorkspaceChanges() {
+        if (selectedIndex === -1 || !currentData[selectedIndex]) return;
+        const item = currentData[selectedIndex];
+        const start = parseFloat(document.getElementById('wsStart').value);
+        const end = parseFloat(document.getElementById('wsEnd').value);
+        const speaker = document.getElementById('wsSpeaker').value.trim();
+        // Edit the word in place: undo, drag and the timeline blocks hold the object itself.
+        if (speaker) item.speaker = speaker;
+        if (isFinite(start) && isFinite(end)) Object.assign(item, { start, duration: end - start });
+        item.text = document.getElementById('wsText').value;
+        selectedTrack = item.speaker;
+        if (!activeSpeakers.includes(selectedTrack)) activeSpeakers.push(selectedTrack);
+    }
+
+    const SPEED_MIN = 0.5, SPEED_MAX = 3.0, SPEED_STEP = 0.5;
+    let playbackSpeed = 1.0;
+
+    function setPlaybackSpeed(next) {
+        playbackSpeed = Math.max(SPEED_MIN, Math.min(SPEED_MAX, Math.round(next * 100) / 100));
+        for (const el of players) el.playbackRate = playbackSpeed;
+        document.getElementById('playbackSpeedDisplay').innerText = playbackSpeed.toFixed(1) + 'x';
+    }
+
+    // Auto-split on: B also splits the text, the left piece keeps the first word and the right
+    // piece the rest. Off: both pieces keep the whole text. Remembered per browser.
+    let autoSplit = store.get('avcc-autosplit') === '1';
+    const autoSplitBtn = document.getElementById('autoSplitBtn');
+    function paintAutoSplit() {
+        autoSplitBtn.textContent = autoSplit ? 'Auto-split: ON' : 'Auto-split: OFF';
+        autoSplitBtn.className = autoSplit ? 'btn-success' : '';
+    }
+    autoSplitBtn.addEventListener('click', () => {
+        autoSplit = !autoSplit;
+        store.set('avcc-autosplit', autoSplit ? '1' : '0');
+        paintAutoSplit();
+        autoSplitBtn.blur();
+    });
+    paintAutoSplit();
+
+    // Caps Lock decides what , / . , the wheel and dragging do. The browser only reports it
+    // on an event, so repaint on every key and mouse press. The edge last moved is lit.
+    const edgeModeEl = document.getElementById('edgeModeIndicator');
+    let lastEdge = null;
+    function paintEdgeMode(shrink, edge) {
+        if (edge) lastEdge = edge;
+        const tag = (side, txt) => `<span style="padding: 0 4px; margin: 0 1px; border-radius: 3px;${lastEdge === side ? ' background: #fff; color: #000;' : ' opacity: 0.6;'}">${txt}</span>`;
+        edgeModeEl.innerHTML = `<div style="white-space: nowrap;">${tag('left', shrink ? 'L ▶' : '◀ L')}${tag('right', shrink ? '◀ R' : 'R ▶')}</div>`
+            + `<div style="margin-top: 3px;">${shrink ? 'SHRINK ⇪' : 'EXTEND'}</div>`
+            + `<div style="font-size: 10px; opacity: 0.85;">drag: ${shrink ? 'MOVE' : 'EDGE'}</div>`;
+        document.body.classList.toggle('drag-edge', !shrink);
+        edgeModeEl.style.background = shrink ? '#7a3b1e' : '#1e4d7a';
+        edgeModeEl.style.color = '#fff';
+    }
+    ['keydown', 'keyup', 'mousedown'].forEach(t => window.addEventListener(t, e => {
+        if (e.getModifierState) paintEdgeMode(e.getModifierState('CapsLock'));
+    }, true));
+    paintEdgeMode(false);
+
+    // A new file resets the rate, so put it back. Volume set on the player on screen
+    // carries over to the parked ones.
+    for (const el of players) {
+        el.addEventListener('loadedmetadata', () => { el.playbackRate = playbackSpeed; });
+        el.addEventListener('volumechange', () => {
+            if (el === video) for (const o of players) if (o !== el) { o.volume = el.volume; o.muted = el.muted; }
+        });
+    }
+
+    window.addEventListener('keydown', (e) => {
+        const isTyping = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+
+        // Speed works regardless of focus; preventDefault also stops a field from scrolling.
+        if (e.key === 'PageUp' || e.key === 'PageDown') {
+            e.preventDefault();
+            setPlaybackSpeed(playbackSpeed + (e.key === 'PageUp' ? SPEED_STEP : -SPEED_STEP));
+            return;
+        }
+
+        // Bbox mode has its own keys (bbox.js); here only Space still plays and pauses.
+        if (document.body.classList.contains('bbmode')) {
+            if (e.code === 'Space' && !isTyping) {
+                e.preventDefault();
+                if (video.paused) video.play(); else video.pause();
+            }
+            return;
+        }
+
+        // In a text field Ctrl+Z stays the browser's own text undo.
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === 'KeyZ' && !isTyping) {
+            e.preventDefault();
+            undoLast();
+            return;
+        }
+
+        if (e.key === 'Enter') {
+            if (selectedIndex !== -1) {
+                const wsText = document.getElementById('wsText');
+                e.preventDefault();
+                if (document.activeElement === wsText) {
+                    applyWorkspaceChanges();
+                    currentData.sort((a, b) => a.start - b.start);
+                    resetWorkspaceForNew();
+                    document.activeElement.blur();
+                } else {
+                    // A word is usually retyped whole, so select it.
+                    wsText.focus();
+                    wsText.select();
+                }
+            } else {
+                e.preventDefault();
+                const t = video.currentTime;
+                const i = currentData.findIndex(w => w.speaker === selectedTrack && t >= w.start && t <= w.start + w.duration);
+                if (i !== -1) selectWord(i);
+            }
+        }
+        else if (e.code === 'Escape') {
+            clearMulti();
+            if (selectedIndex !== -1) resetWorkspaceForNew();
+            if (document.activeElement) document.activeElement.blur();
+            document.getElementById('shortcutOverlay').style.display = 'none';
+        }
+        else if (e.code === 'Space' && !isTyping) {
+            e.preventDefault();
+            if (video.paused) video.play(); else video.pause();
+        }
+        else if (e.key === 'Delete' && !isTyping) {
+            e.preventDefault();
+            deleteSelectedWord();
+        }
+        else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !isTyping) {
+            e.preventDefault();
+            const speakers = getUniqueSpeakersObjOrder();
+            if (speakers.length === 0) return;
+            let idx = speakers.indexOf(selectedTrack);
+            if (idx === -1) idx = 0;
+            idx = e.key === 'ArrowUp' ? Math.max(0, idx - 1) : Math.min(speakers.length - 1, idx + 1);
+            selectedTrack = speakers[idx];
+
+            // A group moves to that lane together; a selected word moves and stays selected.
+            if (multiSel.size) { setMultiSpeaker(selectedTrack); return; }
+            if (selectedIndex !== -1) {
+                const item = currentData[selectedIndex];
+                if (item.speaker === selectedTrack) return;
+                item.speaker = selectedTrack;
+                document.getElementById('wsSpeaker').value = selectedTrack;
+                renderTimeline();
+            } else {
+                buildLanes();
+            }
+        }
+        else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !isTyping) {
+            if (selectedIndex !== -1) {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    document.getElementById(e.key === 'ArrowLeft' ? 'wsSnapLeft' : 'wsSnapRight').click();
+                    return;
+                }
+                const item = currentData[selectedIndex];
+                item.start = Math.max(0, item.start + (e.key === 'ArrowLeft' ? -0.01 : 0.01));
+                document.getElementById('wsStart').value = item.start.toFixed(3);
+                document.getElementById('wsEnd').value = (item.start + item.duration).toFixed(3);
+                const selectedEl = document.querySelector('.block.selected');
+                if (selectedEl) {
+                    selectedEl.style.left = `${item.start * scale}px`;
+                    selectedEl._s.left = item.start * scale;
+                }
+            }
+        }
+        // , / . move the left / right edge by 0.01 s: outward, or inward with Caps Lock on.
+        // e.code, so Shift and keyboard layouts do not matter. With nothing selected they
+        // step one frame back / forward (Shift: 5 frames) and pause.
+        else if ((e.code === 'Comma' || e.code === 'Period') && !isTyping) {
+            e.preventDefault();
+            if (selectedIndex === -1) {
+                const n = (e.code === 'Comma' ? -1 : 1) * (e.shiftKey ? 5 : 1);
+                const frame = Math.max(0, Math.floor(video.currentTime * videoFPS + 1e-3) + n);
+                // a hair past the frame's start, so floor(t * fps) lands on that frame
+                const t = Math.min(frame / videoFPS + 1e-4, getActiveDuration() || Infinity);
+                if (!video.paused) video.pause();
+                seekTo(t, false);
+            } else {
+                const step = e.getModifierState('CapsLock') ? -0.01 : 0.01;
+                if (e.code === 'Comma') nudgeSelected('left', -step);
+                else nudgeSelected('right', step);
+                paintEdgeMode(step < 0, e.code === 'Comma' ? 'left' : 'right');
+            }
+        }
+        else if ((e.key === '+' || e.key === '=') && !isTyping) {
+            e.preventDefault();
+            document.getElementById('wsAdd').click();
+        }
+        else if ((e.key === 'p' || e.key === 'P') && !isTyping) {
+            e.preventDefault();
+            scrollToPlayhead();
+        }
+        else if ((e.key === 'b' || e.key === 'B') && !isTyping) {
+            e.preventDefault();
+            applyWorkspaceChanges();
+            // The selected word if the playhead is inside it, else the word under the
+            // playhead on the current lane.
+            const t = video.currentTime;
+            const inside = w => w && t > w.start && t < w.start + w.duration;
+            const sel = selectedIndex !== -1 ? currentData[selectedIndex] : null;
+            const word = inside(sel) ? sel : currentData.find(w => w.speaker === selectedTrack && inside(w));
+            if (word && word.start + word.duration - t > 0) {
+                const tokens = (word.text || '').trim().split(/\s+/).filter(Boolean);
+                const [text1, text2] = autoSplit ? [tokens[0] || '', tokens.slice(1).join(' ')] : [word.text, word.text];
+                const left = { speaker: word.speaker, start: word.start, duration: t - word.start, text: text1 };
+                const right = { speaker: word.speaker, start: t, duration: word.start + word.duration - t, text: text2 };
+                currentData.splice(currentData.indexOf(word), 1, left, right);
+                pushUndo({ word, pieces: [left, right] });
+                currentData.sort((a, b) => a.start - b.start);
+                selectWord(currentData.indexOf(right));
+            }
+        }
+        else if (e.key === 'Tab' && !isTyping) {
+            e.preventDefault();
+            if (currentData.length === 0) return;
+            const active = selectedIndex !== -1 ? currentData[selectedIndex] : null;
+            applyWorkspaceChanges();
+            currentData.sort((a, b) => a.start - b.start);
+
+            const lane = currentData.filter(w => w.speaker === selectedTrack);
+            if (lane.length === 0) return;
+            let target = null;
+            if (active && active.speaker === selectedTrack) {
+                const i = lane.indexOf(active);
+                if (i !== -1) target = e.shiftKey ? (lane[i - 1] || lane[lane.length - 1]) : (lane[i + 1] || lane[0]);
+            }
+            if (!target) {
+                const t = video.currentTime;
+                if (e.shiftKey) target = [...lane].reverse().find(w => w.start < t - 0.001) || lane[lane.length - 1];
+                else target = lane.find(w => w.start > t + 0.001) || lane[0];
+            }
+            selectWord(currentData.indexOf(target));
+            video.currentTime = target.start;
+        }
+    });
+
+    function parseWords(text) {
+        currentData = [];
+        undoStack = [];
+        multiSel = new Set();
+        document.getElementById('multiBar').classList.add('hidden');
+        activeSpeakers = [];
+        text.split('\n').forEach(line => {
+            if (!line.trim()) return;
+            let cols = line.split('\t');
+            if (cols.length < 5) cols = line.trim().split(/\s+/);
+            if (cols.length < 5) return;
+            currentData.push({
+                speaker: cols[2],
+                start: parseFloat(cols[3]),
+                duration: parseFloat(cols[4]),
+                text: cols.slice(5).join(' ').replace(/\s+/g, ' ').trim(),
+            });
+        });
+        const unique = getUniqueSpeakersObjOrder();
+        activeSpeakers = [...unique];
+        if (unique.includes("0")) selectedTrack = "0";
+        else if (unique.length > 0) selectedTrack = unique[0];
+    }
+
+    function getUniqueSpeakersObjOrder() {
+        const speakersObj = {};
+        activeSpeakers.forEach(s => speakersObj[s] = true);
+        currentData.forEach(item => speakersObj[item.speaker] = true);
+        return Object.keys(speakersObj);
+    }
+
+    function drawBBoxes(currentTime) {
+        if (video.videoWidth > 0 && (bboxCanvas.width !== video.videoWidth || bboxCanvas.height !== video.videoHeight)) {
+            bboxCanvas.width = video.videoWidth;
+            bboxCanvas.height = video.videoHeight;
+        }
+        bboxCtx.clearRect(0, 0, bboxCanvas.width, bboxCanvas.height);
+
+        const boxes = bboxData[Math.floor(currentTime * videoFPS)];
+        if (!boxes) return;
+        boxes.forEach(box => {
+            const sIdx = speakerOrder.indexOf(box.spk);
+            const color = colors[(sIdx !== -1 ? sIdx : parseInt(box.spk) || 0) % colors.length];
+            // Whoever is talking at this instant gets a heavier box.
+            const speaking = rowsOverlapping(box.spk, currentTime, currentTime)
+                .some(u => currentTime < u.start + u.duration);
+            const base = Math.max(3, bboxCanvas.width / 400);
+            bboxCtx.strokeStyle = color;
+            bboxCtx.lineWidth = speaking ? base * 3 : base;
+            if (speaking) { bboxCtx.shadowColor = color; bboxCtx.shadowBlur = base * 6; }
+            bboxCtx.beginPath();
+            bboxCtx.rect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1);
+            bboxCtx.stroke();
+            bboxCtx.shadowBlur = 0;
+
+            bboxCtx.fillStyle = color;
+            const fontSize = Math.max(16, bboxCanvas.width / 40);
+            bboxCtx.font = `bold ${fontSize}px system-ui`;
+            const label = speaking ? `${box.spk} ●` : `${box.spk}`;
+            const textWidth = bboxCtx.measureText(label).width;
+            bboxCtx.fillRect(box.x1, box.y1 - fontSize - 6, textWidth + 10, fontSize + 6);
+            bboxCtx.fillStyle = "#fff";
+            bboxCtx.fillText(label, box.x1 + 5, box.y1 - 6);
+        });
+    }
+
+    // ---- audio strip ----
+    // Fixed-width tiles in timeline pixels, drawn by Web Workers and cached, so scrolling,
+    // zooming, playing and editing never wait on an FFT. Only tiles near the view are on the page.
+
+    function setAudioStatus(msg) {
+        const el = document.getElementById('audioStatus');
+        if (el.textContent !== msg) el.textContent = msg;
+    }
+
+    function startRenderers() {
+        const src = document.getElementById('audioTileSrc').textContent;
+        if (typeof OffscreenCanvas !== 'undefined' && window.Worker &&
+            'transferToImageBitmap' in OffscreenCanvas.prototype) {
+            try {
+                const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+                const n = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 2));
+                for (let i = 0; i < n; i++) audio.renderers.push(new Worker(url));
+            } catch (e) {
+                console.log('audio workers unavailable, drawing on the page:', e);
+                audio.renderers = [];
+            }
+        }
+        if (!audio.renderers.length) audio.renderers.push(inlineRenderer());
+        audio.renderers.forEach(r => {
+            r.onmessage = e => onTileDone(r, e.data);
+            audio.idle.push(r);
+        });
+    }
+
+    // Same messages as the worker, run on the page one tile per task.
+    function inlineRenderer() {
+        const wins = new Map();
+        const r = {
+            postMessage(m) {
+                if (m.type === 'win') { AudioTile.prepare(m.win); wins.set(m.win.id, m.win); return; }
+                if (m.type === 'drop') { wins.delete(m.id); return; }
+                if (m.type === 'reset') { wins.clear(); return; }
+                setTimeout(() => {
+                    const win = wins.get(m.winId);
+                    if (!win) { r.onmessage({ data: { key: m.key, gen: m.gen, error: 'no window' } }); return; }
+                    const cv = document.createElement('canvas');
+                    cv.width = m.mode === 'waveform' ? m.W * 2 : m.W;
+                    cv.height = AudioTile.H;
+                    AudioTile[m.mode](cv.getContext('2d'), win, m.x0, m.W, m.scale);
+                    r.onmessage({ data: { key: m.key, gen: m.gen, canvas: cv } });
+                }, 0);
+            }
+        };
+        return r;
+    }
+
+    function postAll(msg, transferable) {
+        audio.renderers.forEach((r, k) => {
+            if (!transferable) { r.postMessage(msg); return; }
+            const last = k === audio.renderers.length - 1;
+            const data = last ? transferable : transferable.slice();
+            r.postMessage({ ...msg, win: { ...msg.win, data } }, [data.buffer]);
+        });
+    }
+
+    function resetAudio() {
+        audio.gen++;
+        audio.wins.clear();
+        audio.loading.clear();
+        audio.inflight.clear();
+        audio.want = [];
+        audioError = "";
+        postAll({ type: 'reset' });
+        clearAudioTiles();
+    }
+
+    function clearAudioTiles() {
+        audio.tiles.clear();
+        document.querySelectorAll('#waveformContainer .audio-tile').forEach(c => c.remove());
+    }
+
+    // 16-bit PCM WAV from api/audio -> mono Float32 at the file's own rate. Parsed here
+    // rather than with decodeAudioData, which resamples to the device rate on the main thread.
+    function parseWav(buf) {
+        const v = new DataView(buf);
+        let off = 12, sr = AUDIO_SR, ch = 1, bits = 16;
+        while (off + 8 <= v.byteLength) {
+            const id = String.fromCharCode(v.getUint8(off), v.getUint8(off + 1), v.getUint8(off + 2), v.getUint8(off + 3));
+            const size = v.getUint32(off + 4, true);
+            if (id === 'fmt ') {
+                ch = v.getUint16(off + 10, true); sr = v.getUint32(off + 12, true); bits = v.getUint16(off + 22, true);
+            } else if (id === 'data') {
+                if (bits !== 16) throw new Error(`unsupported WAV (${bits}-bit)`);
+                const n = Math.floor(Math.min(size, v.byteLength - off - 8) / (2 * ch));
+                const pcm = new Int16Array(buf, off + 8, n * ch);
+                const out = new Float32Array(n);
+                for (let i = 0; i < n; i++) {
+                    let s = 0;
+                    for (let c = 0; c < ch; c++) s += pcm[i * ch + c];
+                    out[i] = s / (ch * 32768);
+                }
+                return { data: out, sr };
+            }
+            off += 8 + size + (size & 1);
+        }
+        throw new Error('no audio data in WAV');
+    }
+
+    // Where the window holding t begins, on a grid, so scrolling back and forth does not
+    // fetch a window one second to the left.
+    function audioWindowStartFor(t) {
+        const total = getActiveDuration() || Infinity;
+        const want = Math.max(0, Math.min(t, Math.max(0, total - 5)));
+        return Math.floor(want / (AUDIO_WINDOW / 2)) * (AUDIO_WINDOW / 2);
+    }
+
+    function fetchAudioWindow(start) {
+        if (!currentVid || !currentSeg) return Promise.resolve(null);
+        if (audio.wins.has(start)) return Promise.resolve(audio.wins.get(start));
+        if (audio.loading.has(start)) return audio.loading.get(start);
+        const gen = audio.gen;
+        const url = `api/audio?video=${encodeURIComponent(currentVid)}`
+                  + `&seg=${encodeURIComponent(currentSeg)}`
+                  + `&from=${start}&dur=${AUDIO_WINDOW}&sr=${AUDIO_SR}`;
+        if (!audio.tiles.size) setAudioStatus('Loading audio…');
+        const p = fetch(url)
+            .then(res => {
+                if (!res.ok) return res.json().then(j => { throw new Error(j.error || res.status); });
+                return res.arrayBuffer();
+            })
+            .then(buf => {
+                if (gen !== audio.gen) return null;
+                const { data, sr } = parseWav(buf);
+                const dur = data.length / sr;
+                const win = { id: ++audio.seq, start, dur, sr, isLast: dur < AUDIO_WINDOW - 0.5 };
+                postAll({ type: 'win', win }, data);
+                audio.wins.set(start, win);
+                audio.loading.delete(start);
+                while (audio.wins.size > AUDIO_KEEP_WINDOWS) {
+                    const mid = (wrapper.scrollLeft + wrapper.clientWidth / 2) / scale;
+                    let far = null;
+                    for (const w of audio.wins.values())
+                        if (w !== win && (!far || Math.abs(w.start + w.dur / 2 - mid) > Math.abs(far.start + far.dur / 2 - mid))) far = w;
+                    audio.wins.delete(far.start);
+                    postAll({ type: 'drop', id: far.id });
+                }
+                setAudioStatus('');
+                updateAudioTiles();
+                return win;
+            })
+            .catch(e => {
+                if (gen !== audio.gen) return null;
+                audio.loading.delete(start);
+                audioError = String(e.message || e);
+                setAudioStatus('Audio unavailable: ' + audioError + ' (Options > Refresh to retry)');
+                console.log('audio window failed:', e);
+                return null;
+            });
+        audio.loading.set(start, p);
+        return p;
+    }
+
+    // While playing, load the window under the playhead and fetch the next one well before
+    // the playhead reaches the end of this one. A failed window waits for Refresh.
+    function ensureAudioWindow(t) {
+        if (audioError || !currentVid) return;
+        let cover = null;
+        for (const w of audio.wins.values())
+            if (t >= w.start && (w.isLast || t <= w.start + w.dur - 1)) { cover = w; break; }
+        if (!cover) {
+            if (!audio.loading.size) fetchAudioWindow(audioWindowStartFor(Math.max(0, t - AUDIO_WINDOW / 4)));
+            return;
+        }
+        if (!video.paused && !cover.isLast && t > cover.start + cover.dur - 120)
+            fetchAudioWindow(cover.start + AUDIO_WINDOW / 2);
+    }
+
+    // A tile spans at most 100 s, so it always fits inside one window.
+    function tilePx() { return Math.max(256, Math.min(2048, Math.floor(100 * scale))); }
+
+    function windowForSpan(t0, t1) {
+        for (const w of audio.wins.values())
+            if (w.start <= Math.max(0, t0 - 0.05) && (w.isLast || w.start + w.dur >= t1 + 0.05)) return w;
+        return null;
+    }
+
+    function updateAudioTiles() {
+        const container = document.getElementById('waveformContainer');
+        if (!currentVid || !currentSeg || !wrapper.clientWidth) return;
+        const W = tilePx(), mode = audioDisplayMode;
+        const total = getActiveDuration();
+        const nTiles = Math.max(1, Math.ceil(total * scale / W));
+        // The view plus half a screen either side, nearest the centre first.
+        const v0 = wrapper.scrollLeft - wrapper.clientWidth / 2;
+        const v1 = wrapper.scrollLeft + wrapper.clientWidth * 1.5;
+        const i0 = Math.max(0, Math.floor(v0 / W)), i1 = Math.min(nTiles - 1, Math.floor(v1 / W));
+        const mid = (wrapper.scrollLeft + wrapper.clientWidth / 2) / W;
+        const idx = [];
+        for (let i = i0; i <= i1; i++) idx.push(i);
+        idx.sort((a, b) => Math.abs(a + 0.5 - mid) - Math.abs(b + 0.5 - mid));
+
+        const want = [], wantKeys = new Set();
+        let missingWindow = null;
+        for (const i of idx) {
+            const key = `${audio.gen}|${mode}|${scale}|${W}|${i}`;
+            wantKeys.add(key);
+            if (audio.tiles.has(key)) continue;
+            const t0 = i * W / scale, t1 = Math.min(total, (i + 1) * W / scale);
+            const win = windowForSpan(t0, t1);
+            if (win) want.push({ key, i, W, mode, scale, winId: win.id, x0: i * W });
+            else if (missingWindow === null) missingWindow = t0;
+        }
+        audio.want = want;
+        if (missingWindow !== null && !audioError && audio.loading.size < 2)
+            fetchAudioWindow(Math.floor(missingWindow / (AUDIO_WINDOW / 2)) * (AUDIO_WINDOW / 2));
+
+        // Tiles from the previous zoom stay, stretched, under the new ones until those are
+        // drawn, so zooming never blanks the strip.
+        let complete = true;
+        for (const key of wantKeys) {
+            const cv = audio.tiles.get(key);
+            if (!cv) { complete = false; continue; }
+            audio.tiles.delete(key); audio.tiles.set(key, cv);
+            cv.className = 'audio-tile fresh';
+            if (cv._left !== cv._i * W) { cv._left = cv._i * W; cv.style.left = cv._left + 'px'; cv.style.width = W + 'px'; }
+            if (cv.parentNode !== container) container.appendChild(cv);
+        }
+        container.querySelectorAll('.audio-tile').forEach(cv => {
+            if (wantKeys.has(cv._key)) return;
+            if (complete || cv._mode !== mode || cv._gen !== audio.gen) { cv.remove(); return; }
+            const k = scale / cv._scale;
+            cv.className = 'audio-tile stale';
+            cv.style.left = (cv._i * cv._W * k) + 'px';
+            cv.style.width = (cv._W * k) + 'px';
+            cv._left = NaN;
+        });
+        while (audio.tiles.size > TILE_CACHE) {
+            const [k, cv] = audio.tiles.entries().next().value;
+            if (cv.parentNode && wantKeys.has(k)) break;
+            audio.tiles.delete(k);
+            if (cv.parentNode && !cv.classList.contains('stale')) cv.remove();
+        }
+        if (audio.tiles.size || audio.loading.size === 0) {
+            if (!audioError) setAudioStatus('');
+        }
+        pumpTiles();
+    }
+
+    function pumpTiles() {
+        while (audio.idle.length) {
+            const job = audio.want.find(j => !audio.inflight.has(j.key) && !audio.tiles.has(j.key));
+            if (!job) return;
+            audio.inflight.add(job.key);
+            const r = audio.idle.pop();
+            r._job = job;
+            r.postMessage({ type: 'tile', gen: audio.gen, ...job });
+        }
+    }
+
+    function onTileDone(r, m) {
+        const job = r._job;
+        r._job = null;
+        audio.idle.push(r);
+        audio.inflight.delete(m.key);
+        if (m.gen === audio.gen && !m.error && job) {
+            let cv = m.canvas;
+            if (!cv) {
+                cv = document.createElement('canvas');
+                cv.width = m.bmp.width; cv.height = m.bmp.height;
+                cv.getContext('bitmaprenderer').transferFromImageBitmap(m.bmp);
+            }
+            Object.assign(cv, { _key: m.key, _i: job.i, _W: job.W, _scale: job.scale, _mode: job.mode, _gen: m.gen, _left: NaN });
+            audio.tiles.set(m.key, cv);
+            updateAudioTiles();
+        } else {
+            if (m.bmp) m.bmp.close();
+            pumpTiles();
+        }
+    }
+
+    startRenderers();
+
+    // ---- timeline ----
+    // Only the blocks within a screen of the view exist in the page; scrolling adds and
+    // removes them. A long segment has thousands of words.
+
+    function rebuildIndex() {
+        speakerOrder = getUniqueSpeakersObjOrder();
+        laneIndex = {};
+        speakerOrder.forEach(s => { laneIndex[s] = { items: [], maxDur: 0 }; });
+        for (const item of currentData) {
+            const L = laneIndex[item.speaker] || (laneIndex[item.speaker] = { items: [], maxDur: 0 });
+            L.items.push(item);
+            if (item.duration > L.maxDur) L.maxDur = item.duration;
+        }
+        for (const s in laneIndex) laneIndex[s].items.sort((a, b) => a.start - b.start);
+    }
+
+    // Words of one speaker overlapping [t0, t1], in start order.
+    function rowsOverlapping(spk, t0, t1) {
+        const L = laneIndex[spk];
+        if (!L) return [];
+        const a = L.items, from = t0 - L.maxDur;
+        let lo = 0, hi = a.length;
+        while (lo < hi) { const m = (lo + hi) >> 1; if (a[m].start < from) lo = m + 1; else hi = m; }
+        const out = [];
+        for (let i = lo; i < a.length && a[i].start <= t1; i++)
+            if (a[i].start + a[i].duration >= t0) out.push(a[i]);
+        return out;
+    }
+
+    // Lanes are rebuilt only when the set of speakers changes.
+    function buildLanes() {
+        const container = document.getElementById('lanesContainer');
+        const sig = speakerOrder.join('\u0001');
+        if (container._sig !== sig) {
+            container.textContent = '';
+            elByItem = new Map();
+            laneEls = {};
+            speakerOrder.forEach((spk, sIdx) => {
+                const lane = document.createElement('div');
+                lane.className = 'speaker-lane';
+                lane.dataset.spk = spk;
+                lane.style.borderColor = colors[sIdx % colors.length];
+                const label = document.createElement('div');
+                label.className = 'speaker-label';
+                label.textContent = `Speaker ${spk}`;
+                lane.appendChild(label);
+                container.appendChild(lane);
+                laneEls[spk] = lane;
+            });
+            container._sig = sig;
+        }
+        for (const spk in laneEls) laneEls[spk].classList.toggle('selected-track', spk === selectedTrack);
+    }
+
+    function renderTimeline(withVisible = true) {
+        document.getElementById('timelineWrapper').style.display = 'block';
+        rebuildIndex();
+        let maxTime = getActiveDuration();
+        for (const item of currentData) if (item.start + item.duration > maxTime) maxTime = item.start + item.duration;
+        timelineWidthPx = Math.max((maxTime + 1) * scale, window.innerWidth);
+        document.getElementById('timelineContainer').style.width = `${timelineWidthPx}px`;
+        buildLanes();
+        renderEvents();
+        if (withVisible) renderVisible();
+        renderMinimap();
+    }
+
+    function renderEvents() {
+        const track = document.getElementById('eventsTrack');
+        track.classList.toggle('hidden', !events.length);
+        let html = '';
+        events.forEach((ev, i) => {
+            const label = `${ev.type} ${ev.prev}→${ev.next}`;
+            html += `<div class="ev ${ev.type === 'shift' ? 'shift' : 'hold'}" data-i="${i}"`
+                  + ` style="left:${ev.start * scale}px;width:${Math.max(3, ev.dur * scale)}px"`
+                  + ` title="${esc(label)} at ${ev.start.toFixed(3)} s, pause ${ev.dur.toFixed(3)} s">${esc(label)}</div>`;
+        });
+        track.innerHTML = html;
+    }
+    // Seek to the event; a selected word would pull the playhead back into itself, so it is let go.
+    document.getElementById('eventsTrack').addEventListener('click', e => {
+        const el = e.target.closest('.ev');
+        if (!el) return;
+        const ev = events[+el.dataset.i];
+        if (!ev) return;
+        if (selectedIndex !== -1) resetWorkspaceForNew();
+        seekTo(ev.start, !video.paused, true);
+    });
+
+    function makeBlock(item) {
+        const el = document.createElement('div');
+        el.className = 'block';
+        el.innerHTML = '<div class="block-text"></div><div class="handle handle-left"></div><div class="handle handle-right"></div>';
+        el._item = item;
+        el._s = {};
+        return el;
+    }
+
+    function updateBlock(el, item, color, selected) {
+        const s = el._s;
+        const left = item.start * scale, width = item.duration * scale;
+        if (s.left !== left) { el.style.left = `${left}px`; s.left = left; }
+        if (s.width !== width) { el.style.width = `${width}px`; s.width = width; }
+        if (s.color !== color) { el.style.backgroundColor = color; s.color = color; }
+        // A block a few pixels wide cannot show its text; skip laying it out.
+        const text = width >= 12 ? (item.text || '') : '';
+        if (s.text !== text) { el.firstChild.textContent = text; s.text = text; }
+        if (s.sel !== selected) { el.classList.toggle('selected', selected); s.sel = selected; }
+        const multi = multiSel.has(item);
+        if (s.multi !== multi) { el.classList.toggle('multi', multi); s.multi = multi; }
+    }
+
+    // Blocks for the view and one screen either side; everything else is removed.
+    function renderVisible() {
+        if (!wrapper.clientWidth) return;
+        const view0 = wrapper.scrollLeft / scale, view1 = (wrapper.scrollLeft + wrapper.clientWidth) / scale;
+        const pad = view1 - view0, t0 = view0 - pad, t1 = view1 + pad;
+        const sel = selectedIndex !== -1 ? currentData[selectedIndex] : null;
+        const keep = new Map();
+        speakerOrder.forEach((spk, sIdx) => {
+            const lane = laneEls[spk];
+            if (!lane) return;
+            const color = colors[sIdx % colors.length];
+            for (const item of rowsOverlapping(spk, t0, t1)) {
+                const el = elByItem.get(item) || makeBlock(item);
+                updateBlock(el, item, color, item === sel);
+                if (el.parentNode !== lane) lane.appendChild(el);
+                keep.set(item, el);
+            }
+        });
+        for (const [item, el] of elByItem) if (!keep.has(item) && el !== activeDragElement) el.remove();
+        elByItem = keep;
+        drawAlignLines(t0, t1);
+        updateAudioTiles();
+    }
+
+    function drawAlignLines(t0, t1) {
+        const layer = document.getElementById('alignLayer');
+        if (!showGlobalAlignLines) { if (layer.firstChild) layer.textContent = ''; return; }
+        let html = '';
+        for (const spk of speakerOrder)
+            for (const it of rowsOverlapping(spk, t0, t1))
+                html += `<div class="global-align-line" style="left:${it.start * scale}px"></div>`
+                      + `<div class="global-align-line" style="left:${(it.start + it.duration) * scale}px"></div>`;
+        layer.innerHTML = html;
+    }
+
+    const lanesEl = document.getElementById('lanesContainer');
+
+    // ---- group select: drag a window over empty lane space ----
+    // The words it touches, in the lanes it covers, become a group; the yellow bar (or ↑/↓)
+    // gives them one speaker ID. Shift/Ctrl+drag adds to the group, Ctrl+click adds or
+    // removes one word. Esc or a plain click clears it.
+    const marquee = document.createElement('div');
+    marquee.id = 'marquee';
+    document.body.appendChild(marquee);
+    let marqueeJustEnded = false;
+
+    function paintMulti() {
+        const bar = document.getElementById('multiBar');
+        bar.classList.toggle('hidden', !multiSel.size);
+        if (multiSel.size) {
+            const by = {};
+            for (const it of multiSel) by[it.speaker] = (by[it.speaker] || 0) + 1;
+            document.getElementById('multiCount').textContent = `${multiSel.size} selected · `
+                + Object.entries(by).map(([k, n]) => `spk ${k}: ${n}`).join(', ');
+            const btns = document.getElementById('multiSpkBtns');
+            btns.innerHTML = '';
+            for (const spk of getUniqueSpeakersObjOrder()) {
+                const b = document.createElement('button');
+                b.textContent = `→ ${spk}`;
+                b.onclick = () => { setMultiSpeaker(spk); b.blur(); };
+                btns.appendChild(b);
+            }
+        }
+        renderTimeline();
+    }
+    function clearMulti() {
+        if (!multiSel.size) return;
+        multiSel = new Set();
+        paintMulti();
+    }
+    function setMultiSpeaker(spk) {
+        spk = String(spk).trim();
+        if (!spk || !multiSel.size) return;
+        const changed = [...multiSel].filter(it => it.speaker !== spk);
+        if (!changed.length) return;
+        pushUndo({ speakers: changed.map(it => [it, it.speaker]) });
+        for (const it of changed) it.speaker = spk;
+        if (!activeSpeakers.includes(spk)) activeSpeakers.push(spk);
+        selectedTrack = spk;
+        const sel = selectedIndex !== -1 ? currentData[selectedIndex] : null;
+        if (sel && multiSel.has(sel)) document.getElementById('wsSpeaker').value = spk;
+        paintMulti();
+    }
+    document.getElementById('multiSet').onclick = () => setMultiSpeaker(document.getElementById('multiSpk').value);
+    document.getElementById('multiSpk').addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); setMultiSpeaker(e.target.value); e.target.blur(); }
+    });
+    document.getElementById('multiClear').onclick = e => { clearMulti(); e.target.blur(); };
+
+    lanesEl.addEventListener('mousedown', e => {
+        if (e.button !== 0 || e.target.closest('.block')) return;
+        const x0 = e.clientX, y0 = e.clientY, add = e.shiftKey || e.ctrlKey || e.metaKey;
+        const base = add ? new Set(multiSel) : new Set();
+        let on = false;
+        const box = ev => ({
+            x1: Math.min(x0, ev.clientX), x2: Math.max(x0, ev.clientX),
+            y1: Math.min(y0, ev.clientY), y2: Math.max(y0, ev.clientY),
+        });
+        const pick = r => {
+            const out = new Set(base);
+            for (const spk in laneEls) {
+                const lr = laneEls[spk].getBoundingClientRect();
+                if (lr.bottom < r.y1 || lr.top > r.y2) continue;
+                const left = lr.left + lr.width - laneEls[spk].clientWidth;   // inside the colour border
+                for (const it of rowsOverlapping(spk, (r.x1 - left) / scale, (r.x2 - left) / scale)) out.add(it);
+            }
+            return out;
+        };
+        const move = ev => {
+            if (!on && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 5) return;
+            on = true;
+            const r = box(ev);
+            Object.assign(marquee.style, { display: 'block', left: `${r.x1}px`, top: `${r.y1}px`,
+                                           width: `${r.x2 - r.x1}px`, height: `${r.y2 - r.y1}px` });
+            ev.preventDefault();
+        };
+        const up = ev => {
+            window.removeEventListener('mousemove', move);
+            window.removeEventListener('mouseup', up);
+            marquee.style.display = 'none';
+            if (!on) return;
+            marqueeJustEnded = true;          // the click this drag ends with is not a lane click
+            setTimeout(() => { marqueeJustEnded = false; });
+            multiSel = pick(box(ev));
+            paintMulti();
+        };
+        window.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', up);
+    });
+    // Caps Lock off (EDGE): the end handles drag that edge. Caps Lock on (MOVE): dragging
+    // anywhere on a block, handles included, moves the whole word. A move starts only once
+    // the mouse has gone 4 px, so a plain click still selects and seeks.
+    let movedByDrag = false;
+    lanesEl.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
+        const edgeMode = !e.getModifierState('CapsLock');
+        const h = e.target.closest('.handle');
+        if (edgeMode) {
+            if (!h) return;
+            const idx = currentData.indexOf(h.parentNode._item);
+            if (idx !== -1) startDrag(e, idx, h.classList.contains('handle-left') ? 'left' : 'right');
+            return;
+        }
+        const block = e.target.closest('.block');
+        if (!block) return;
+        if (h) e.stopPropagation();
+        const idx = currentData.indexOf(block._item);
+        if (idx === -1) return;
+        const x0 = e.clientX;
+        const pend = ev => {
+            if (Math.abs(ev.clientX - x0) < 4) return;
+            window.removeEventListener('mousemove', pend);
+            window.removeEventListener('mouseup', drop);
+            movedByDrag = true;   // eats the click this drag ends with, if it lands on a block
+            window.addEventListener('mouseup', () => setTimeout(() => { movedByDrag = false; }), { once: true });
+            startDrag(e, idx, 'move');
+            onDrag(ev);
+        };
+        const drop = () => {
+            window.removeEventListener('mousemove', pend);
+            window.removeEventListener('mouseup', drop);
+        };
+        window.addEventListener('mousemove', pend);
+        window.addEventListener('mouseup', drop);
+    });
+    lanesEl.addEventListener('click', e => {
+        if (marqueeJustEnded) return;
+        const block = e.target.closest('.block');
+        if (block) {
+            if (isDragging) return;
+            if (movedByDrag) { movedByDrag = false; e.stopPropagation(); return; }
+            e.stopPropagation();
+            const item = block._item, idx = currentData.indexOf(item);
+            if (idx === -1) return;
+            if (e.ctrlKey || e.metaKey) {
+                if (multiSel.has(item)) multiSel.delete(item); else multiSel.add(item);
+                paintMulti();
+                return;
+            }
+            if (multiSel.size) {
+                multiSel = new Set();
+                document.getElementById('multiBar').classList.add('hidden');
+            }
+            selectedTrack = item.speaker;
+            selectWord(idx);
+            // Jump to the word's start; keep playing if it was playing.
+            seekTo(item.start, !video.paused, true);
+            return;
+        }
+        const lane = e.target.closest('.speaker-lane');
+        if (!lane) return;
+        selectedTrack = lane.dataset.spk;
+        if (multiSel.size) clearMulti(); else buildLanes();
+    });
+    // The word under the mouse gets spare.click parked at its start, so the click that follows
+    // plays at once. Pressing the button starts it too, for a hover too quick to have done it.
+    let hoverTimer = null;
+    lanesEl.addEventListener('mouseover', e => {
+        const block = e.target.closest('.block');
+        clearTimeout(hoverTimer);
+        if (block && block._item) hoverTimer = setTimeout(() => park('click', block._item.start), 40);
+    });
+    lanesEl.addEventListener('pointerdown', e => {
+        const block = e.target.closest('.block');
+        if (!block || !block._item || e.target.closest('.handle')) return;
+        clearTimeout(hoverTimer);
+        park('click', block._item.start);
+    });
+
+    // Moves the selected word's left or right edge by d seconds; an edge never crosses the
+    // other. Updates the inputs and the block without a re-render.
+    function nudgeSelected(mode, d) {
+        const item = currentData[selectedIndex];
+        let start = item.start, end = item.start + item.duration;
+        if (mode === 'left') start = Math.min(end - 0.01, Math.max(0, start + d));
+        else end = Math.max(start + 0.01, end + d);
+        item.start = Math.round(start * 1000) / 1000;
+        item.duration = Math.round((end - item.start) * 1000) / 1000;
+
+        document.getElementById('wsStart').value = item.start.toFixed(3);
+        document.getElementById('wsEnd').value = (item.start + item.duration).toFixed(3);
+        const selectedEl = document.querySelector('.block.selected');
+        if (selectedEl) {
+            selectedEl.style.left = `${item.start * scale}px`;
+            selectedEl.style.width = `${item.duration * scale}px`;
+            selectedEl._s.left = item.start * scale;
+            selectedEl._s.width = item.duration * scale;
+        }
+    }
+
+    // Wheel over the selected block: up moves the left edge, down the right edge, outward
+    // (extend) or inward with Caps Lock on (shrink); 0.01 s a notch, Shift 0.05 s. Elsewhere
+    // the wheel scrolls. Trackpad deltas add up to a notch before a step.
+    let wheelAcc = 0;
+    lanesEl.addEventListener('wheel', e => {
+        const block = e.target.closest('.block.selected');
+        if (!block || selectedIndex === -1 || currentData[selectedIndex] !== block._item) return;
+        e.preventDefault();
+        let dy = e.deltaY || e.deltaX;
+        if (e.deltaMode === 1) dy *= 40; else if (e.deltaMode === 2) dy *= 800;
+        wheelAcc += dy;
+        if (Math.abs(wheelAcc) < 40) return;
+        const dir = Math.sign(wheelAcc);
+        wheelAcc = 0;
+        const shrink = e.getModifierState('CapsLock');
+        const step = (shrink ? -1 : 1) * (e.shiftKey ? 0.05 : 0.01);
+        const edge = dir < 0 ? 'left' : 'right';
+        nudgeSelected(edge, edge === 'left' ? -step : step);
+        paintEdgeMode(shrink, edge);
+    }, { passive: false });
+
+    let scrollRaf = null;
+    wrapper.addEventListener('scroll', () => {
+        if (scrollRaf !== null) return;
+        scrollRaf = requestAnimationFrame(() => {
+            scrollRaf = null;
+            renderVisible();
+            if (video.paused) updatePlayhead();
+        });
+    }, { passive: true });
+    new ResizeObserver(() => { if (currentData.length) renderVisible(); }).observe(wrapper);
+
+    // ---- minimap ----
+    function renderMinimap() {
+        const duration = getActiveDuration();
+        if (duration <= 1 && currentData.length === 0) return;
+        document.getElementById('minimapWrapper').style.display = 'block';
+        const container = document.getElementById('minimapContainer');
+        let cv = document.getElementById('minimapCanvas');
+        if (!cv) {
+            container.textContent = '';
+            cv = document.createElement('canvas');
+            cv.id = 'minimapCanvas';
+            container.appendChild(cv);
+        }
+        const laneH = 12, gap = 2, n = speakerOrder.length, evH = events.length ? 6 : 0;
+        const cssW = container.clientWidth || 1, cssH = n * laneH + (n + 1) * gap + (evH ? evH + gap : 0);
+        const dpr = window.devicePixelRatio || 1;
+        if (cv.width !== Math.round(cssW * dpr) || cv.height !== Math.round(cssH * dpr)) {
+            cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+            cv.style.height = `${cssH}px`;
+        }
+        const ctx = cv.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, cssW, cssH);
+        const k = cssW / duration;
+        speakerOrder.forEach((spk, sIdx) => {
+            const y = gap + sIdx * (laneH + gap);
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.fillRect(0, y, cssW, laneH);
+            ctx.globalAlpha = 0.9;
+            ctx.fillStyle = colors[sIdx % colors.length];
+            for (const w of (laneIndex[spk] || { items: [] }).items)
+                ctx.fillRect(w.start * k, y, w.duration * k, laneH);
+        });
+        ctx.globalAlpha = 1;
+        const y = gap + n * (laneH + gap);
+        for (const ev of events) {
+            ctx.fillStyle = ev.type === 'shift' ? '#ff3b30' : '#4A90E2';
+            ctx.fillRect(ev.start * k, y, Math.max(2, ev.dur * k), evH);
+        }
+    }
+    new ResizeObserver(() => { if (currentData.length) renderMinimap(); })
+        .observe(document.getElementById('minimapContainer'));
+
+    document.getElementById('minimapWrapper').addEventListener('mousedown', (e) => {
+        const duration = getActiveDuration();
+        const rect = e.currentTarget.getBoundingClientRect();
+        const jumpTo = (clientX) => {
+            const pos = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+            video.currentTime = pos * duration;
+        };
+        jumpTo(e.clientX);
+        const onMouseMove = (moveEvent) => jumpTo(moveEvent.clientX);
+        const onMouseUp = () => {
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+        };
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+    });
+
+    // Each speaker's words in the view, the one under the playhead highlighted.
+    function syncSubtitles(currentTime) {
+        const speakers = speakerOrder;
+        if (subtitlesContent.children.length !== speakers.length ||
+            (speakers.length && !document.getElementById(`word-mode-spk-${speakers[0].replace(/[^a-zA-Z0-9]/g, '_')}`))) {
+            initWordLevelBoxes();
+        }
+        const viewStartSec = wrapper.scrollLeft / scale;
+        const viewEndSec = (wrapper.scrollLeft + wrapper.clientWidth) / scale;
+
+        speakers.forEach((spk) => {
+            const textEl = document.getElementById(`word-mode-text-${spk.replace(/[^a-zA-Z0-9]/g, '_')}`);
+            if (!textEl) return;
+            const words = rowsOverlapping(spk, viewStartSec, viewEndSec);
+            if (words.length === 0) {
+                if (lastSpeakerSignatures[spk] !== 'empty') {
+                    lastSpeakerSignatures[spk] = 'empty';
+                    textEl.innerHTML = `<span style="color:#666; font-style:italic;">[Outside viewport]</span>`;
+                }
+                return;
+            }
+            const sig = words.map(w => {
+                const isActive = currentTime >= w.start && currentTime <= w.start + w.duration;
+                const isPast = currentTime > w.start + w.duration;
+                return `${w.start}-${isActive}-${isPast}-${w.text}`;
+            }).join('|');
+            if (lastSpeakerSignatures[spk] === sig) return;
+            lastSpeakerSignatures[spk] = sig;
+            textEl.innerHTML = words.map(w => {
+                const isActive = currentTime >= w.start && currentTime <= w.start + w.duration;
+                const isPast = currentTime > w.start + w.duration;
+                const cls = isActive ? 'active-word' : isPast ? 'past-word' : 'future-word';
+                return `<span class="sub-word ${cls}" data-t="${w.start}" title="Seek to ${w.start.toFixed(2)} s">${esc(w.text || '')} </span>`;
+            }).join('');
+        });
+    }
+
+    // The timeline follows the playhead while playing, and once after a seek or P. While
+    // paused it does not follow, so the timeline can be scrolled freely.
+    let followOnce = false;
+    function scrollToPlayhead() {
+        followOnce = true;
+        updatePlayhead();
+    }
+
+    function updatePlayhead(frameTime = performance.now()) {
+        playheadAnimationFrame = null;
+        const currentTime = video.currentTime;
+        const duration = getActiveDuration();
+
+        // A selected word plays in a loop.
+        if (selectedIndex !== -1 && currentData[selectedIndex]) {
+            const w = currentData[selectedIndex];
+            const end = w.start + w.duration;
+            if (!replay && currentTime >= end) {
+                seekTo(w.start, !video.paused);
+                park('loop', w.start);
+                return;
+            }
+            if (!isDragging) park('loop', w.start);
+            if (!video.paused && (end - currentTime) / video.playbackRate < 0.25) scheduleReplay(w);
+        }
+
+        const xPos = currentTime * scale;
+        playhead.style.transform = `translate3d(${xPos}px, 0, 0)`;
+
+        const bboxFrame = Math.floor(currentTime * videoFPS);
+        if (bboxFrame !== lastBBoxFrame) {
+            lastBBoxFrame = bboxFrame;
+            drawBBoxes(currentTime);
+        }
+        if (frameTime - lastContextUpdateTime >= 16.67 || video.paused) {
+            lastContextUpdateTime = frameTime;
+            syncSubtitles(currentTime);
+            ensureAudioWindow(currentTime);
+        }
+
+        const follow = followOnce || (!video.paused && !video.ended);
+        followOnce = false;
+        if (follow && xPos > wrapper.scrollLeft + wrapper.clientWidth * 0.95) {
+            wrapper.scrollLeft = xPos - wrapper.clientWidth * 0.1;
+        } else if (follow && xPos < wrapper.scrollLeft) {
+            wrapper.scrollLeft = Math.max(0, xPos - wrapper.clientWidth * 0.1);
+        }
+
+        if (duration > 0 && (frameTime - lastMinimapUpdateTime >= 50 || video.paused)) {
+            lastMinimapUpdateTime = frameTime;
+            document.getElementById('minimapPlayhead').style.left = `${(currentTime / duration) * 100}%`;
+            const totalWidth = timelineWidthPx || 1;
+            const viewPct = Math.min(1, wrapper.clientWidth / totalWidth);
+            const scrollPct = Math.max(0, Math.min(1 - viewPct, wrapper.scrollLeft / totalWidth));
+            const vp = document.getElementById('minimapViewport');
+            vp.style.width = `${viewPct * 100}%`;
+            vp.style.left = `${scrollPct * 100}%`;
+        }
+
+        if (!video.paused && !video.ended) schedulePlayheadUpdate();
+    }
+
+    function schedulePlayheadUpdate() {
+        if (playheadAnimationFrame === null) {
+            playheadAnimationFrame = requestAnimationFrame(updatePlayhead);
+        }
+    }
+
+    function stopPlayheadAnimation() {
+        if (playheadAnimationFrame !== null) {
+            cancelAnimationFrame(playheadAnimationFrame);
+            playheadAnimationFrame = null;
+        }
+        updatePlayhead();
+    }
+
+    onVideo('play', schedulePlayheadUpdate);
+    onVideo('pause', stopPlayheadAnimation);
+    onVideo('ended', stopPlayheadAnimation);
+    onVideo('seeked', () => {
+        if (video.paused) scrollToPlayhead();
+        else schedulePlayheadUpdate();
+    });
+    onVideo('timeupdate', () => {
+        if (video.paused) updatePlayhead();
+        else schedulePlayheadUpdate();
+    });
+
+    // ---- the parked spare players ----
+    // Each spare keeps _target (where it was sent), _ready (where it is decoded; NaN while it
+    // seeks) and _gen (bumped to drop a superseded park).
+    let pendingSwap = null;          // a click waiting for a spare already on its way there
+
+    function unparkAll() {
+        for (const el of Object.values(spare)) forgetPark(el);
+        pendingSwap = null;
+    }
+
+    function forgetPark(el) {
+        el._gen = (el._gen || 0) + 1;
+        el._target = el._ready = NaN;
+    }
+
+    const roleOf = el => Object.keys(spare).find(k => spare[k] === el);
+
+    // Send a spare to t, to wait there paused and decoded. If the other spare is already
+    // there or on its way, no second decoder is sent: for the replay it just swaps roles.
+    function park(role, t) {
+        const el = spare[role];
+        if (!el.currentSrc || !isFinite(t) || el._target === t) return;
+        const other = Object.values(spare).find(s => s !== el && s._target === t);
+        if (other) {
+            if (role === 'loop') { spare.loop = other; spare.click = el; }
+            return;
+        }
+        if (replay && replay.next === el) cancelReplay();
+        forgetPark(el);
+        const gen = el._gen;
+        el._target = t;
+        el._sentAt = performance.now();
+        if (!el.paused) el.pause();
+        // Not while the player on screen is seeking: two decoders on one jump slow both.
+        const go = () => {
+            if (gen !== el._gen) return;
+            if (video.seeking) { video.addEventListener('seeked', go, { once: true }); return; }
+            el.addEventListener('seeked', () => {
+                if (gen !== el._gen) return;
+                el._ready = t;
+                const p = pendingSwap;
+                if (p && p.el === el && p.gen === gen) { pendingSwap = null; seekTo(p.t, p.play); }
+            }, { once: true });
+            el.currentTime = t;
+        };
+        setTimeout(go, 0);
+    }
+
+    function readyAt(el, t) {
+        return el._ready === t && !el.seeking && el.readyState >= 2 && Math.abs(el.currentTime - t) <= 0.02;
+    }
+
+    function spareAt(t) {
+        return Object.values(spare).find(el => readyAt(el, t)) || null;
+    }
+
+    function matchPlayer(el) {
+        el.playbackRate = playbackSpeed;
+        el.volume = video.volume;
+        el.muted = video.muted;
+    }
+
+    // A spare becomes the player on screen. The old one is paused and takes over the spare's
+    // role; the replay spare is sent back to the selected word's start.
+    function promote(el) {
+        const old = video;
+        spare[roleOf(el)] = old;
+        video = el;
+        el.classList.remove('standby');
+        old.classList.add('standby');
+        el.controls = true;
+        old.controls = false;
+        old.pause();
+        forgetPark(old);
+        forgetPark(el);
+        lastBBoxFrame = -1;
+        const sel = currentData[selectedIndex];
+        if (sel) park('loop', sel.start);
+        if (el.paused) scrollToPlayhead();
+        else schedulePlayheadUpdate();
+    }
+
+    // Jump to t by showing a spare parked there. False, and nothing changes, if none is.
+    function swapTo(t, play) {
+        cancelReplay();
+        const el = spareAt(t);
+        if (!el) return false;
+        matchPlayer(el);
+        if (play) el.play().catch(() => {});
+        promote(el);
+        return true;
+    }
+
+    // Seek, through a spare when one is waiting at t. A click (wait) for a time a spare is
+    // already heading to waits for it instead of sending a second decoder there.
+    function seekTo(t, play, wait) {
+        pendingSwap = null;
+        if (swapTo(t, play)) return;
+        const coming = wait ? Object.values(spare).filter(el => el._target === t && isNaN(el._ready))
+                                  .sort((a, b) => a._sentAt - b._sentAt)[0] : null;
+        if (coming) {
+            const p = pendingSwap = { el: coming, gen: coming._gen, t, play };
+            setTimeout(() => { if (pendingSwap === p) { pendingSwap = null; seekTo(t, play); } }, 1000);
+            return;
+        }
+        video.currentTime = t;
+        if (play && video.paused) video.play();
+    }
+
+    // The loop's replay is handed over on timers: the parked player is started playLead ms
+    // before the word ends and the one on screen is paused exactly at the end. playLead is the
+    // audio start-up time, re-learned after every replay from the new player's settled clock.
+    let replay = null;
+    let playLead = 50;
+
+    function scheduleReplay(w) {
+        if (replay) return;
+        const next = spareAt(w.start);
+        if (!next) return;
+        const msLeft = (w.start + w.duration - video.currentTime) / video.playbackRate * 1000;
+        const endAt = performance.now() + msLeft;
+        matchPlayer(next);
+        replay = { word: w, t: w.start, next, timers: [
+            setTimeout(() => next.play().catch(() => {}), Math.max(0, msLeft - playLead)),
+            setTimeout(() => finishReplay(endAt), msLeft),
+        ] };
+    }
+
+    function cancelReplay() {
+        if (!replay) return;
+        const { t, next, timers } = replay;
+        replay = null;
+        timers.forEach(clearTimeout);
+        if (next !== video && !next.paused) {
+            next.pause();
+            const role = roleOf(next);
+            forgetPark(next);
+            if (role) park(role, t);
+        }
+    }
+
+    function finishReplay(endAt) {
+        const { word, t, next } = replay;
+        if (video.paused || next.paused || next === video || !roleOf(next)
+            || currentData[selectedIndex] !== word || word.start !== t) {
+            cancelReplay();
+            return;
+        }
+        replay = null;
+        promote(next);
+        setTimeout(() => {
+            if (video !== next || next.paused || next.seeking) return;
+            const startedAt = performance.now() - (next.currentTime - t) / next.playbackRate * 1000;
+            playLead = Math.max(0, Math.min(200, playLead + 0.7 * (startedAt - endAt)));
+        }, 250);
+    }
+    onVideo('pause', () => { cancelReplay(); pendingSwap = null; });
+    onVideo('seeking', () => { cancelReplay(); pendingSwap = null; });
+    document.getElementById('followPlayheadBtn').addEventListener('click', e => { scrollToPlayhead(); e.currentTarget.blur(); });
+
+    function startDrag(e, index, type) {
+        e.stopPropagation();
+        if (!video.paused) video.pause();
+
+        isDragging = true;
+        dragType = type;
+        dragIndex = index;
+        if (type === 'move') {
+            // keep the grab point under the mouse
+            const rect = document.getElementById('timelineContainer').getBoundingClientRect();
+            dragGrab = (e.clientX - rect.left) / scale - currentData[index].start;
+            if (index !== selectedIndex) { selectedTrack = currentData[index].speaker; selectWord(index); }
+        } else selectWord(index);
+
+        activeDragElement = type === 'move' ? document.querySelector('.block.selected') : e.target.closest('.block');
+        if (activeDragElement) activeDragElement.classList.add('dragging');
+
+        const dragLine = document.getElementById('dragLine');
+        dragLine.style.display = 'block';
+        const item = currentData[index];
+        dragLine.style.left = `${(type === 'right' ? item.start + item.duration : item.start) * scale}px`;
+
+        window.addEventListener('mousemove', onDrag);
+        window.addEventListener('mouseup', stopDrag);
+    }
+
+    function onDrag(e) {
+        if (!isDragging) return;
+        const rect = document.getElementById('timelineContainer').getBoundingClientRect();
+        const newTime = Math.max(0, (e.clientX - rect.left) / scale);
+        const item = currentData[dragIndex];
+        const dragLine = document.getElementById('dragLine');
+
+        if (dragType === 'move') {
+            item.start = Math.round(Math.max(0, newTime - dragGrab) * 1000) / 1000;
+            dragLine.style.left = `${item.start * scale}px`;
+        } else if (dragType === 'left') {
+            const end = item.start + item.duration;
+            item.start = Math.min(newTime, end - 0.05);
+            item.duration = end - item.start;
+            dragLine.style.left = `${item.start * scale}px`;
+        } else {
+            item.duration = Math.max(0.05, newTime - item.start);
+            dragLine.style.left = `${(item.start + item.duration) * scale}px`;
+        }
+
+        document.getElementById('wsStart').value = item.start.toFixed(3);
+        document.getElementById('wsEnd').value = (item.start + item.duration).toFixed(3);
+
+        if (activeDragElement) {
+            activeDragElement.style.left = `${item.start * scale}px`;
+            activeDragElement.style.width = `${item.duration * scale}px`;
+        }
+    }
+
+    function stopDrag() {
+        isDragging = false;
+        if (activeDragElement) activeDragElement.classList.remove('dragging');
+        activeDragElement = null;
+        document.getElementById('dragLine').style.display = 'none';
+        window.removeEventListener('mousemove', onDrag);
+        window.removeEventListener('mouseup', stopDrag);
+
+        const dragged = currentData[dragIndex];
+        currentData.sort((a, b) => a.start - b.start);
+        selectWord(currentData.indexOf(dragged));
+    }
+
+    function selectWord(index) {
+        selectedIndex = index;
+        const item = currentData[index];
+        selectedTrack = item.speaker;
+        document.getElementById('wsSpeaker').value = item.speaker;
+        document.getElementById('wsStart').value = item.start.toFixed(3);
+        document.getElementById('wsEnd').value = (item.start + item.duration).toFixed(3);
+        document.getElementById('wsText').value = item.text;
+        document.getElementById('wsApply').classList.remove('hidden');
+        document.getElementById('wsDelete').classList.remove('hidden');
+        document.getElementById('wsAdd').classList.add('hidden');
+        renderTimeline();
+        park('loop', item.start);        // ready for the first replay
+    }
+
+    function resetWorkspaceForNew() {
+        selectedIndex = -1;
+        pendingSwap = null;
+        document.getElementById('wsSpeaker').value = selectedTrack || "0";
+        document.getElementById('wsStart').value = "0.000";
+        document.getElementById('wsEnd').value = "1.000";
+        document.getElementById('wsText').value = "";
+        document.getElementById('wsApply').classList.add('hidden');
+        document.getElementById('wsDelete').classList.add('hidden');
+        document.getElementById('wsAdd').classList.remove('hidden');
+        renderTimeline();
+    }
+
+    document.getElementById('wsApply').onclick = () => {
+        if (selectedIndex === -1) return;
+        applyWorkspaceChanges();
+        const target = currentData[selectedIndex];
+        currentData.sort((a, b) => a.start - b.start);
+        selectWord(currentData.indexOf(target));
+    };
+
+    function deleteSelectedWord() {
+        if (selectedIndex === -1) return;
+        pushUndo({ word: currentData.splice(selectedIndex, 1)[0] });
+        resetWorkspaceForNew();
+    }
+
+    document.getElementById('wsDelete').onclick = deleteSelectedWord;
+
+    document.getElementById('wsAdd').onclick = () => {
+        if (!currentSeg) return;
+        const word = { speaker: selectedTrack || "0", start: video.currentTime, duration: 0.2, text: "" };
+        currentData.push(word);
+        currentData.sort((a, b) => a.start - b.start);
+        selectWord(currentData.indexOf(word));
+    };
+
+    document.getElementById('wsSnapLeft').onclick = () => {
+        if (selectedIndex === -1) return;
+        applyWorkspaceChanges();
+        const cur = currentData[selectedIndex];
+        const prev = currentData
+            .filter(w => w.speaker === cur.speaker && w !== cur)
+            .sort((a, b) => a.start - b.start)
+            .reverse().find(w => w.start < cur.start);
+        const prevEnd = prev ? prev.start + prev.duration : 0;
+        const curEnd = cur.start + cur.duration;
+        if (prevEnd < curEnd) {
+            cur.start = prevEnd;
+            cur.duration = curEnd - prevEnd;
+            selectWord(selectedIndex);
+        }
+    };
+
+    document.getElementById('wsSnapRight').onclick = () => {
+        if (selectedIndex === -1) return;
+        applyWorkspaceChanges();
+        const cur = currentData[selectedIndex];
+        const next = currentData
+            .filter(w => w.speaker === cur.speaker && w !== cur)
+            .sort((a, b) => a.start - b.start)
+            .find(w => w.start > cur.start);
+        const nextStart = next ? next.start : getActiveDuration();
+        if (nextStart > cur.start) {
+            cur.duration = nextStart - cur.start;
+            selectWord(selectedIndex);
+        }
+    };
+
+    document.getElementById('saveBtn').onclick = () => {
+        const btn = document.getElementById('saveBtn');
+        btn.blur();
+        if (!currentSeg) return;
+        applyWorkspaceChanges();
+        currentData.sort((a, b) => a.start - b.start);
+        const words = currentData.map(w => [w.speaker, w.start, w.duration, (w.text || '').replace(/[\r\n]+/g, ' ')]);
+        if (!words.some(w => w[3].trim()) && !confirm('There are no words. Save an empty word file?')) return;
+        const vid = currentVid, seg = currentSeg, sent = wordsText();
+
+        const progressContainer = document.getElementById('saveProgressContainer');
+        const progressBar = document.getElementById('saveProgressBar');
+        btn.innerText = "Saving...";
+        btn.disabled = true;
+        progressContainer.classList.remove('hidden');
+        progressContainer.style.display = 'flex';
+        progressBar.style.width = '0%';
+        setTimeout(() => progressBar.style.width = '40%', 10);
+        setTimeout(() => progressBar.style.width = '70%', 100);
+
+        fetch('api/save/words', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ video: vid, seg, words })
+        })
+        .then(res => res.json().then(j => {
+            if (!res.ok || j.error) throw new Error(j.error || ('HTTP ' + res.status));
+            return j;
+        }))
+        .then(j => {
+            if (vid === currentVid && seg === currentSeg) savedWords = sent;
+            progressBar.style.width = '100%';
+            btn.innerText = "Saved!";
+            btn.style.backgroundColor = "#7ED321";
+            showSavedDialog(j, `${vid} ${seg}`);
+            setTimeout(() => {
+                btn.innerText = 'Save';
+                btn.style.backgroundColor = "";
+                btn.disabled = false;
+                progressContainer.style.display = 'none';
+                progressBar.style.width = '0%';
+            }, 1200);
+            renderTimeline();
+        })
+        .catch(err => {
+            alert("NOT SAVED: " + err.message + "\n\nYour edits are still in the page; nothing was written.");
+            btn.style.backgroundColor = "#E02020";
+            setTimeout(() => btn.style.backgroundColor = "", 2000);
+            btn.innerText = 'Save';
+            btn.disabled = false;
+            progressContainer.style.display = 'none';
+        });
+    };
+
+    function showSavedDialog(j, name) {
+        const old = document.getElementById('savedDialog');
+        if (old) old.remove();
+        const d = document.createElement('div');
+        d.id = 'savedDialog';
+        const items = (j.written || []).map(w => `<li><code>${esc(w.path)}</code> &middot; ${w.rows} rows</li>`).join('');
+        const skipped = j.skipped ? `<div class="note">${j.skipped} word(s) with no text were left out.</div>` : '';
+        d.innerHTML = `<div class="box"><div class="title">&#10003; Saved ${esc(name)}</div><ul>${items}</ul>${skipped}
+            <div style="text-align:right;margin-top:12px"><button id="savedOk" class="btn-primary">OK</button></div></div>`;
+        document.body.appendChild(d);
+        const close = () => { d.remove(); document.removeEventListener('keydown', onKey, true); };
+        const onKey = e => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } };
+        document.addEventListener('keydown', onKey, true);
+        d.onclick = e => { if (e.target === d || e.target.id === 'savedOk') close(); };
+        document.getElementById('savedOk').focus();
+    }
+
+    window.addEventListener('beforeunload', e => {
+        if (unsavedWords()) { e.preventDefault(); e.returnValue = ''; }
+    });
+
+    const listBtn = document.getElementById('toggleListBtn');
+    function toggleList() {
+        const c = document.getElementById('browser').classList.toggle('collapsed');
+        listBtn.classList.toggle('off', c);
+        store.set('avcc-annotate-list', c ? 'closed' : 'open');
+    }
+    listBtn.addEventListener('click', () => { toggleList(); listBtn.blur(); });
+    if (store.get('avcc-annotate-list') === 'closed') toggleList();
+    document.addEventListener('keydown', e => {
+        if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+        if (e.key === '\\') toggleList();
+    });
+</script>
+<script src="bbox.js"></script>
+</body>
+</html>

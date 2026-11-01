@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AVCC Demo Viewer</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --fg: #1b1f27; --mut: #5d6575; --line: #dfe3ea;
+  --acc: #2f6fe4; --hold: #2f6fe4; --shift: #d9480f; --stage: #0b0d12;
+  --s0: #d63a3a; --s1: #13956a; --s2: #b7860b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101318; --panel: #181c24; --fg: #e8eaf0; --mut: #9aa2b4; --line: #2a303c;
+    --acc: #6b9bff; --hold: #6b9bff; --shift: #ff8a4c; --stage: #000;
+    --s0: #ff6b6b; --s1: #4ad6a0; --s2: #ffd34a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101318; --panel: #181c24; --fg: #e8eaf0; --mut: #9aa2b4; --line: #2a303c;
+  --acc: #6b9bff; --hold: #6b9bff; --shift: #ff8a4c; --stage: #000;
+  --s0: #ff6b6b; --s1: #4ad6a0; --s2: #ffd34a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 40px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 14px; }
+h1 { font-size: 20px; margin: 0; font-weight: 650; }
+.sub { color: var(--mut); font-size: 14px; }
+header nav { margin-left: auto; display: flex; gap: 14px; font-size: 14px; }
+a { color: var(--acc); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.tab { font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 14px; cursor: pointer; text-align: left; }
+.tab small { display: block; color: var(--mut); font-size: 12px; }
+.tab[aria-selected="true"] { border-color: var(--acc); box-shadow: inset 0 0 0 1px var(--acc); }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.stage { position: relative; background: var(--stage); border-radius: 10px 10px 0 0; overflow: hidden;
+  aspect-ratio: 16 / 9; }
+.stage video, .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.stage canvas { pointer-events: none; }
+.novideo { position: absolute; inset: 0; display: none; place-items: center; text-align: center;
+  color: #9aa2b4; padding: 20px; font-size: 14px; }
+.stage.missing .novideo { display: grid; }
+.caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 14px;
+  background: linear-gradient(transparent, rgba(0,0,0,.75)); color: #fff; font-size: 15px;
+  min-height: 48px; pointer-events: none; }
+.caption .ln { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.caption b { font-weight: 650; margin-right: 6px; }
+.caption .now { background: rgba(255,255,255,.22); border-radius: 3px; padding: 0 2px; }
+.ctrls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 12px;
+  border-bottom: 1px solid var(--line); }
+button.b { font: inherit; font-size: 14px; color: var(--fg); background: transparent;
+  border: 1px solid var(--line); border-radius: 7px; padding: 5px 11px; cursor: pointer; }
+button.b:hover { border-color: var(--acc); }
+.time { font-variant-numeric: tabular-nums; color: var(--mut); font-size: 14px; margin-left: 4px; }
+label.chk { font-size: 14px; color: var(--mut); display: inline-flex; gap: 5px; align-items: center; }
+.spacer { flex: 1; }
+.tl { padding: 8px 12px 12px; position: relative; }
+.tl canvas { display: block; width: 100%; cursor: pointer; }
+.tl canvas.grab { cursor: grabbing; }
+.zoom { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--mut);
+  margin-bottom: 8px; }
+.zoom input[type=range] { flex: 1; min-width: 120px; accent-color: var(--acc); }
+.zoom .val { font-variant-numeric: tabular-nums; min-width: 52px; color: var(--fg); }
+.zoom button.b { padding: 2px 9px; font-size: 13px; }
+.tip { position: absolute; z-index: 2; pointer-events: none; display: none; max-width: 320px;
+  background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 7px;
+  padding: 6px 9px; font-size: 12px; line-height: 1.45; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+.tip b { font-weight: 650; }
+.tip .m { color: var(--mut); font-variant-numeric: tabular-nums; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--mut); margin-top: 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px;
+  vertical-align: -1px; }
+.side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.side h2 { font-size: 14px; margin: 0; padding: 10px 12px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 8px; }
+.side h2 span { color: var(--mut); font-weight: 400; }
+dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; padding: 10px 12px;
+  font-size: 14px; }
+dt { color: var(--mut); }
+dd { margin: 0; font-variant-numeric: tabular-nums; }
+.events { max-height: 330px; overflow: auto; }
+.events table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.events td { padding: 5px 12px; border-bottom: 1px solid var(--line); }
+.events tr { cursor: pointer; }
+.events tr:hover td { background: color-mix(in srgb, var(--acc) 8%, transparent); }
+.events tr.cur td { background: color-mix(in srgb, var(--acc) 16%, transparent); }
+.tag { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .4px;
+  padding: 1px 6px; border-radius: 4px; color: #fff; }
+.tag.hold { background: var(--hold); } .tag.shift { background: var(--shift); }
+.filter { margin-left: auto; display: flex; gap: 4px; }
+.filter button { font: inherit; font-size: 12px; color: var(--mut); background: transparent;
+  border: 1px solid var(--line); border-radius: 5px; padding: 1px 7px; cursor: pointer; }
+.filter button.on { color: var(--fg); border-color: var(--acc); }
+.files { list-style: none; margin: 0; padding: 8px 12px; font-size: 13px; }
+.files li { padding: 3px 0; display: flex; justify-content: space-between; gap: 8px; }
+.files code { font-size: 12px; overflow-wrap: anywhere; }
+.files span { color: var(--mut); white-space: nowrap; }
+.note { font-size: 13px; color: var(--mut); margin-top: 18px; }
+kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-bottom-width: 2px;
+  border-radius: 4px; padding: 0 5px; }
+.err { padding: 20px; color: var(--shift); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>AVCC demo viewer</h1>
+    <span class="sub">Audio-Visual Conversation Corpus · test set samples</span>
+    <nav>
+      <a href="https://github.com/Haotian-Qi/AVCC">Repository</a>
+      <a href="https://arxiv.org/abs/2606.16731">Paper</a>
+    </nav>
+  </header>
+
+  <div class="tabs" id="tabs" role="tablist"></div>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="stage" id="stage">
+        <video id="video" playsinline preload="metadata"></video>
+        <canvas id="overlay"></canvas>
+        <div class="novideo">Video not available here. Annotations can still be browsed:<br>
+          use the play button or click the timeline.</div>
+        <div class="caption" id="caption"></div>
+      </div>
+      <div class="ctrls">
+        <button class="b" id="play">Play</button>
+        <button class="b" id="back" title="Back 5 s (←)">−5 s</button>
+        <button class="b" id="fwd" title="Forward 5 s (→)">+5 s</button>
+        <button class="b" id="prevEv" title="Previous event (J)">◀ event</button>
+        <button class="b" id="nextEv" title="Next event (K)">event ▶</button>
+        <span class="time" id="time">0:00.0 / 0:00.0</span>
+        <span class="spacer"></span>
+        <label class="chk"><input type="checkbox" id="showBox" checked> boxes</label>
+        <label class="chk"><input type="checkbox" id="showCap" checked> words</label>
+      </div>
+      <div class="tl" id="tlWrap">
+        <div class="zoom">
+          <span>Zoom</span>
+          <button class="b" id="zoomOut" title="Zoom out (-)">−</button>
+          <input type="range" id="zoom" min="0" max="1000" value="500" aria-label="Timeline zoom">
+          <button class="b" id="zoomIn" title="Zoom in (+)">+</button>
+          <span class="val" id="zoomVal">20 s</span>
+          <button class="b" id="zoomFit" title="Show the whole segment">Fit</button>
+          <label class="chk"><input type="checkbox" id="follow" checked> follow playhead</label>
+        </div>
+        <canvas id="timeline"></canvas>
+        <div class="tip" id="tip"></div>
+        <canvas id="overview" style="margin-top:8px"></canvas>
+        <div class="legend" id="legend"></div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="panel">
+        <h2>Segment <span id="segName"></span></h2>
+        <dl id="stats"></dl>
+      </div>
+      <div class="panel">
+        <h2>Turn events <span id="evCount"></span>
+          <span class="filter" id="evFilter">
+            <button data-f="all" class="on">all</button>
+            <button data-f="hold">hold</button>
+            <button data-f="shift">shift</button>
+          </span>
+        </h2>
+        <div class="events"><table><tbody id="evRows"></tbody></table></div>
+      </div>
+      <div class="panel">
+        <h2>Annotation files</h2>
+        <ul class="files" id="files"></ul>
+      </div>
+    </div>
+  </div>
+
+  <p class="note">
+    Boxes are face tracks per frame (25 fps); a box is highlighted while that speaker is talking.
+    The timeline shows utterances per speaker and the hold/shift events between turns.
+    Zoom in to 15 s or less to see individual words; hover a bar for its text and timing.
+    Scroll on the timeline to zoom, drag it to pan.
+    Keys: <kbd>Space</kbd> play/pause, <kbd>←</kbd>/<kbd>→</kbd> 5 s, <kbd>J</kbd>/<kbd>K</kbd> previous/next event,
+    <kbd>+</kbd>/<kbd>−</kbd> zoom.
+    These two segments are a preview; the full test set is distributed separately.
+  </p>
+</div>
+
+<script>
+"use strict";
+const FPS = 25;
+const MIN_WIN = 1, WORD_WIN = 15; // seconds: closest zoom, and the zoom at which words are drawn
+// Timeline view: `win` seconds wide; centred on the playhead when following, else starting at `t0`.
+const view = { win: 20, t0: 0, follow: true };
+const $ = id => document.getElementById(id);
+const video = $("video"), stage = $("stage"), overlay = $("overlay");
+const tl = $("timeline"), ov = $("overview");
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const spkColor = s => css(`--s${s}`) || css("--mut");
+
+let manifest, seg = null, evFilter = "all";
+
+// ---------- data loading ----------
+async function text(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+  return r.text();
+}
+const rows = t => t.split("\n").filter(l => l.trim()).map(l => l.split("\t"));
+
+async function loadSegment(m) {
+  const base = "data", id = `${m.video_id}/${m.segment_id}`;
+  const [w, u, b, e] = await Promise.all([
+    text(`${base}/word/${id}.txt`), text(`${base}/utterance/${id}.txt`),
+    text(`${base}/bbox/${id}.csv`), text(`${base}/turn_events.txt`)]);
+  let meta = { src_width: 1920, src_height: 1080 };
+  try { meta = { ...meta, ...JSON.parse(await text(`${base}/videos/${id}.json`)) }; } catch (_) {}
+  const words = rows(w).map(f => ({ spk: f[2], start: +f[3], end: +f[3] + +f[4], text: f[5] }));
+  const utts = rows(u).map(f => ({ spk: f[2], start: +f[3], end: +f[3] + +f[4], text: f[5] }));
+  const events = rows(e).filter(f => f[0] === m.video_id && f[1] === m.segment_id)
+    .map(f => ({ prev: f[2], start: +f[3], end: +f[3] + +f[4], next: f[5], type: f[6] }))
+    .sort((a, b) => a.start - b.start);
+  const boxes = new Map(); let maxFrame = 0;
+  for (const line of b.split("\n").slice(1)) {
+    if (!line) continue;
+    const [fi, sp, x1, y1, x2, y2] = line.split(",");
+    const k = +fi; maxFrame = Math.max(maxFrame, k);
+    if (!boxes.has(k)) boxes.set(k, []);
+    boxes.get(k).push({ spk: sp, x1: +x1, y1: +y1, x2: +x2, y2: +y2 });
+  }
+  const duration = Math.max((maxFrame + 1) / FPS, ...utts.map(x => x.end));
+  return { m, id, words, utts, events, boxes, meta, duration, bboxRows: b.split("\n").length - 2 };
+}
+
+// ---------- clock: the video when available, otherwise a simulated one ----------
+const clock = {
+  hasVideo: false, t: 0, playing: false, last: 0,
+  get time() { return this.hasVideo ? video.currentTime : this.t; },
+  seek(t) {
+    t = Math.max(0, Math.min(seg ? seg.duration : 0, t));
+    if (seg && !view.follow && (t < view.t0 || t > view.t0 + view.win)) view.t0 = t - view.win / 2;
+    if (this.hasVideo) video.currentTime = t; else this.t = t;
+  },
+  toggle() {
+    if (this.hasVideo) { video.paused ? video.play() : video.pause(); return; }
+    this.playing = !this.playing; this.last = performance.now();
+  },
+  get isPlaying() { return this.hasVideo ? !video.paused : this.playing; },
+  tick(now) {
+    if (!this.hasVideo && this.playing) {
+      this.t += (now - this.last) / 1000; this.last = now;
+      if (seg && this.t >= seg.duration) { this.t = seg.duration; this.playing = false; }
+    }
+  }
+};
+
+// ---------- UI ----------
+const fmt = t => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s.toFixed(1).padStart(4, "0")}`; };
+const fmt2 = t => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s.toFixed(2).padStart(5, "0")}`; };
+const active = (t, spk) => seg.utts.some(u => u.spk === spk && u.start <= t && t < u.end);
+
+function buildTabs() {
+  $("tabs").innerHTML = "";
+  manifest.segments.forEach((m, i) => {
+    const b = document.createElement("button");
+    b.className = "tab"; b.setAttribute("role", "tab");
+    b.innerHTML = `${m.label}<small>${m.video_id} / ${m.segment_id}</small>`;
+    b.onclick = () => select(i);
+    $("tabs").appendChild(b);
+  });
+}
+
+async function select(i) {
+  [...$("tabs").children].forEach((b, j) => b.setAttribute("aria-selected", i === j));
+  const m = manifest.segments[i];
+  try { seg = await loadSegment(m); }
+  catch (err) { $("stats").innerHTML = `<div class="err">Could not load annotations: ${err.message}</div>`; return; }
+  clock.t = 0; clock.playing = false;
+  stage.classList.remove("missing"); clock.hasVideo = true;
+  video.src = `data/videos/${seg.id}.mp4`;
+  video.load();
+  renderSide();
+  setFollow(true); setWin(Math.min(20, seg.duration));
+  history.replaceState(null, "", `#${m.video_id}/${m.segment_id}`);
+}
+
+video.addEventListener("error", () => { clock.hasVideo = false; stage.classList.add("missing"); });
+
+function renderSide() {
+  const s = seg, n = t => s.events.filter(e => e.type === t).length;
+  const speech = {};
+  for (const u of s.utts) speech[u.spk] = (speech[u.spk] || 0) + (u.end - u.start);
+  $("segName").textContent = `${s.m.video_id} / ${s.m.segment_id}`;
+  $("stats").innerHTML = [
+    ["Duration", fmt(s.duration)],
+    ["Speakers", s.m.speakers.length],
+    ["Words", s.words.length.toLocaleString()],
+    ["Utterances", s.utts.length.toLocaleString()],
+    ["Face boxes", s.bboxRows.toLocaleString()],
+    ["Turn events", `${n("hold")} hold · ${n("shift")} shift`],
+    ...s.m.speakers.map(k => [`Speaker ${k}`, `${(speech[k] || 0).toFixed(1)} s speech`])
+  ].map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("");
+  $("legend").innerHTML = s.m.speakers.map(k => `<span><i style="background:${spkColor(k)}"></i>speaker ${k}</span>`).join("")
+    + `<span><i style="background:${css("--hold")}"></i>hold</span><span><i style="background:${css("--shift")}"></i>shift</span>`;
+  const f = (layer, ext) => `data/${layer}/${s.id}.${ext}`;
+  $("files").innerHTML = [["word", "txt"], ["utterance", "txt"], ["rttm", "rttm"], ["bbox", "csv"]]
+    .map(([l, e]) => `<li><a href="${f(l, e)}"><code>${l}/${s.id}.${e}</code></a><span>${l === "bbox" ? "per frame" : l === "word" ? "per word" : "per utterance"}</span></li>`)
+    .join("") + `<li><a href="data/turn_events.txt"><code>turn_events.txt</code></a><span>both segments</span></li>`;
+  renderEvents();
+}
+
+function renderEvents() {
+  const list = seg.events.filter(e => evFilter === "all" || e.type === evFilter);
+  $("evCount").textContent = `(${list.length})`;
+  $("evRows").innerHTML = list.map(e =>
+    `<tr data-t="${e.start}"><td><span class="tag ${e.type}">${e.type}</span></td>
+     <td>${fmt(e.start)}</td><td>${e.prev} → ${e.next}</td><td>${Math.round((e.end - e.start) * 1000)} ms</td></tr>`).join("");
+  lastEv = undefined; // rows were rebuilt, re-apply the highlight
+  [...$("evRows").children].forEach(tr => tr.onclick = () => { clock.seek(+tr.dataset.t - 2); if (!clock.isPlaying) clock.toggle(); });
+}
+$("evFilter").onclick = e => {
+  if (!e.target.dataset.f) return;
+  evFilter = e.target.dataset.f;
+  [...$("evFilter").children].forEach(b => b.classList.toggle("on", b === e.target));
+  renderEvents();
+};
+
+function jumpEvent(dir) {
+  const t = clock.time + 2, ev = seg.events;
+  const target = dir > 0 ? ev.find(e => e.start > t + 0.05) : [...ev].reverse().find(e => e.start < t - 0.5);
+  if (target) clock.seek(target.start - 2);
+}
+
+$("play").onclick = () => clock.toggle();
+$("back").onclick = () => clock.seek(clock.time - 5);
+$("fwd").onclick = () => clock.seek(clock.time + 5);
+$("prevEv").onclick = () => jumpEvent(-1);
+$("nextEv").onclick = () => jumpEvent(1);
+document.addEventListener("keydown", e => {
+  if (!seg || e.target.tagName === "INPUT") return;
+  if (e.code === "Space") { e.preventDefault(); $("play").click(); }
+  else if (e.key === "ArrowLeft") clock.seek(clock.time - 5);
+  else if (e.key === "ArrowRight") clock.seek(clock.time + 5);
+  else if (e.key === "j" || e.key === "J") jumpEvent(-1);
+  else if (e.key === "k" || e.key === "K") jumpEvent(1);
+  else if (e.key === "+" || e.key === "=") setWin(view.win / 1.5);
+  else if (e.key === "-" || e.key === "_") setWin(view.win * 1.5);
+});
+
+// ---------- drawing ----------
+function fitCanvas(c, h) {
+  const dpr = window.devicePixelRatio || 1, w = c.clientWidth;
+  if (h) c.style.height = h + "px";
+  const H = c.clientHeight;
+  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(H * dpr)) {
+    c.width = Math.round(w * dpr); c.height = Math.round(H * dpr);
+  }
+  const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return [g, w, H];
+}
+
+function drawOverlay(t) {
+  const [g, W, H] = fitCanvas(overlay);
+  g.clearRect(0, 0, W, H);
+  if (!$("showBox").checked) return;
+  // Where the video picture sits inside the stage (object-fit: contain).
+  const ar = (video.videoWidth || seg.meta.src_width) / (video.videoHeight || seg.meta.src_height);
+  let vw = W, vh = W / ar; if (vh > H) { vh = H; vw = H * ar; }
+  const ox = (W - vw) / 2, oy = (H - vh) / 2;
+  const sx = vw / seg.meta.src_width, sy = vh / seg.meta.src_height;
+  const list = seg.boxes.get(Math.floor(t * FPS + 1e-6)) || [];
+  for (const b of list) {
+    const on = active(t, b.spk), col = spkColor(b.spk);
+    const x = ox + b.x1 * sx, y = oy + b.y1 * sy, w = (b.x2 - b.x1) * sx, h = (b.y2 - b.y1) * sy;
+    g.lineWidth = on ? 3 : 1.5; g.strokeStyle = col; g.globalAlpha = on ? 1 : .7;
+    g.strokeRect(x, y, w, h);
+    const label = on ? `S${b.spk} speaking` : `S${b.spk}`;
+    g.font = "600 12px system-ui, sans-serif";
+    const tw = g.measureText(label).width + 10;
+    g.fillStyle = col; g.fillRect(x, Math.max(0, y - 18), tw, 18);
+    g.fillStyle = "#000"; g.globalAlpha = 1; g.fillText(label, x + 5, Math.max(0, y - 18) + 13);
+  }
+  g.globalAlpha = 1;
+}
+
+function drawCaption(t) {
+  if (!$("showCap").checked) { $("caption").innerHTML = ""; return; }
+  const esc = s => s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+  const lines = [];
+  for (const k of seg.m.speakers) {
+    const ws = seg.words.filter(w => w.spk === k && w.end > t - 2.5 && w.start <= t);
+    if (!ws.length) continue;
+    const txt = ws.slice(-10).map(w => w.start <= t && t < w.end ? `<span class="now">${esc(w.text)}</span>` : esc(w.text)).join(" ");
+    lines.push(`<div class="ln"><b style="color:${spkColor(k)}">S${k}</b>${txt}</div>`);
+  }
+  $("caption").innerHTML = lines.join("");
+}
+
+function lanes() { return ["events", ...seg.m.speakers]; }
+
+function viewRange(t) {
+  const win = Math.min(view.win, seg.duration);
+  if (!view.follow) view.t0 = Math.max(0, Math.min(seg.duration - win, view.t0));
+  let t0 = view.follow ? t - win / 2 : view.t0;
+  t0 = Math.max(0, Math.min(seg.duration - win, t0));
+  return [t0, t0 + win, win];
+}
+
+// Zoom slider is logarithmic between MIN_WIN and the whole segment.
+const zoomToWin = v => MIN_WIN * Math.pow(seg.duration / MIN_WIN, v / 1000);
+const winToZoom = w => Math.round(1000 * Math.log(w / MIN_WIN) / Math.log(seg.duration / MIN_WIN));
+function setWin(w, anchor) {
+  // Keep the time under `anchor` (seconds) at the same place on screen when zooming.
+  const [t0, , win] = viewRange(clock.time);
+  w = Math.max(MIN_WIN, Math.min(seg.duration, w));
+  if (anchor != null && !view.follow) view.t0 = anchor - (anchor - t0) * w / win;
+  else if (!view.follow) view.t0 = t0 + (win - w) / 2;
+  view.win = w;
+  $("zoom").value = winToZoom(w);
+  $("zoomVal").textContent = w >= 60 ? fmt(w).replace(/\.0$/, "") : `${w < 10 ? w.toFixed(1) : Math.round(w)} s`;
+}
+function setFollow(on) {
+  if (!on) view.t0 = viewRange(clock.time)[0];
+  view.follow = on; $("follow").checked = on;
+}
+$("zoom").oninput = e => setWin(zoomToWin(+e.target.value));
+$("zoomIn").onclick = () => setWin(view.win / 1.5);
+$("zoomOut").onclick = () => setWin(view.win * 1.5);
+$("zoomFit").onclick = () => { setFollow(false); setWin(seg.duration); view.t0 = 0; };
+$("follow").onchange = e => setFollow(e.target.checked);
+
+function tickStep(win, px) {
+  const want = win / Math.max(4, px / 90);
+  return [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120].find(s => s >= want) || 300;
+}
+
+let hits = []; // hover targets drawn this frame: {x1, x2, y1, y2, html}
+function drawTimeline(t) {
+  const L = lanes(), laneH = 28, top = 18, labelW = 64;
+  const [g, W] = fitCanvas(tl, top + L.length * laneH + 4);
+  const fg = css("--fg"), mut = css("--mut"), line = css("--line");
+  g.clearRect(0, 0, W, tl.clientHeight);
+  const [t0, t1, win] = viewRange(t);
+  const X = s => labelW + (s - t0) / win * (W - labelW);
+  const words = win <= WORD_WIN;
+  hits = [];
+  // ticks: a labelled line every `step` (about 90 px apart), faint minor lines in between
+  const step = tickStep(win, W - labelW), dec = step < 1 ? 1 : 0, minor = step / 5;
+  const pxPerS = (W - labelW) / win;
+  g.font = "11px system-ui, sans-serif"; g.fillStyle = mut; g.strokeStyle = line; g.lineWidth = 1;
+  if (minor * pxPerS >= 12) {
+    g.globalAlpha = .3;
+    for (let k = Math.ceil(t0 / minor); k * minor <= t1 + 1e-9; k++) {
+      const x = X(k * minor); g.beginPath(); g.moveTo(x, top); g.lineTo(x, tl.clientHeight); g.stroke();
+    }
+    g.globalAlpha = 1;
+  }
+  for (let k = Math.ceil(t0 / step - 1e-9); k * step <= t1 + 1e-9; k++) {
+    const sec = k * step, x = X(sec);
+    g.globalAlpha = .9; g.beginPath(); g.moveTo(x, top - 4); g.lineTo(x, tl.clientHeight); g.stroke();
+    g.globalAlpha = 1;
+    const m = Math.floor(sec / 60 + 1e-9), r = (sec - m * 60).toFixed(dec);
+    if (x + 3 >= labelW) g.fillText(`${m}:${r.padStart(dec ? 4 : 2, "0")}`, x + 3, 11);
+  }
+  L.forEach((name, i) => {
+    const y = top + i * laneH;
+    g.fillStyle = name === "events" ? mut : spkColor(name);
+    g.font = "600 12px system-ui, sans-serif";
+    g.fillText(name === "events" ? "events" : `speaker ${name}`, 0, y + 18);
+  });
+  g.save(); g.beginPath(); g.rect(labelW, 0, W - labelW, tl.clientHeight); g.clip();
+  // events
+  g.font = "11px system-ui, sans-serif";
+  for (const e of seg.events) {
+    if (e.end < t0 || e.start > t1) continue;
+    const x = X(e.start), w = Math.max(2, X(e.end) - x);
+    g.fillStyle = css(e.type === "hold" ? "--hold" : "--shift");
+    g.globalAlpha = .9; g.fillRect(x, top + 5, w, laneH - 10);
+    g.globalAlpha = .12; g.fillRect(x, top, w, L.length * laneH);
+    g.globalAlpha = 1;
+    const ms = Math.round((e.end - e.start) * 1000);
+    const txt = [`${e.type} ${ms} ms`, `${ms} ms`].find(l => g.measureText(l).width + 8 <= w);
+    if (txt) { g.fillStyle = "#fff"; g.fillText(txt, x + 4, top + 18); }
+    hits.push({ x1: x, x2: x + w, y1: top, y2: top + laneH,
+      html: `<b>${e.type}</b> · speaker ${e.prev} → ${e.next}<br><span class="m">${fmt2(e.start)} – ${fmt2(e.end)} · gap ${ms} ms</span>` });
+  }
+  // utterances, and words inside them when zoomed in
+  const esc = s => s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+  const box = (x, y, w, h, r) => { g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h); };
+  const label = (txt, x, y, w) => {
+    if (w < 14) return;
+    g.save(); g.beginPath(); g.rect(x, y - 12, w - 3, 16); g.clip();
+    g.fillStyle = "#000"; g.fillText(txt, x + 3, y); g.restore();
+  };
+  g.font = "12px system-ui, sans-serif";
+  for (const u of seg.utts) {
+    if (u.end < t0 || u.start > t1) continue;
+    const i = seg.m.speakers.indexOf(u.spk); if (i < 0) continue;
+    const y = top + (i + 1) * laneH + 3, h = laneH - 6, x = X(u.start), x2 = X(u.end);
+    const col = spkColor(u.spk);
+    const uhtml = `<b style="color:${col}">speaker ${u.spk}</b> · utterance<br>${esc(u.text)}<br>
+      <span class="m">${fmt2(u.start)} – ${fmt2(u.end)} · ${(u.end - u.start).toFixed(2)} s</span>`;
+    if (!words) {
+      g.fillStyle = col; g.globalAlpha = .85; box(x, y, Math.max(1, x2 - x), h, 4); g.fill(); g.globalAlpha = 1;
+      if (x2 - x > 30) label(u.text, Math.max(x, labelW), y + 15, x2 - Math.max(x, labelW));
+      hits.push({ x1: x, x2: Math.max(x2, x + 3), y1: y, y2: y + h, html: uhtml });
+      continue;
+    }
+    // Word view: utterance as an outline, each word as a solid block inside it.
+    g.fillStyle = col; g.globalAlpha = .16; box(x, y, x2 - x, h, 4); g.fill();
+    g.globalAlpha = .9; g.strokeStyle = col; g.lineWidth = 1.5; box(x, y, x2 - x, h, 4); g.stroke();
+    g.globalAlpha = 1;
+    hits.push({ x1: x, x2, y1: y, y2: y + h, html: uhtml });
+    for (const w of seg.words) {
+      if (w.spk !== u.spk || w.end <= u.start || w.start >= u.end) continue;
+      const wx = X(w.start), ww = Math.max(2, X(w.end) - wx);
+      const now = w.start <= t && t < w.end;
+      g.fillStyle = col; g.globalAlpha = now ? 1 : .8; box(wx, y + 3, ww, h - 6, 3); g.fill(); g.globalAlpha = 1;
+      if (now) { g.strokeStyle = fg; g.lineWidth = 1.5; box(wx, y + 3, ww, h - 6, 3); g.stroke(); }
+      label(w.text, wx, y + 15, ww);
+      hits.push({ x1: wx, x2: wx + ww, y1: y, y2: y + h,
+        html: `<b style="color:${col}">speaker ${w.spk}</b> · word<br>${esc(w.text)}<br>
+          <span class="m">${fmt2(w.start)} – ${fmt2(w.end)} · ${Math.round((w.end - w.start) * 1000)} ms</span>` });
+    }
+  }
+  g.restore();
+  // playhead
+  const px = X(t);
+  if (px >= labelW && px <= W) {
+    g.strokeStyle = fg; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(px, top - 6); g.lineTo(px, tl.clientHeight); g.stroke();
+  }
+  tl._view = { t0, win, labelW, W };
+}
+
+function drawOverview(t) {
+  const [g, W, H] = fitCanvas(ov, 34);
+  g.clearRect(0, 0, W, H);
+  const X = s => s / seg.duration * W, n = seg.m.speakers.length, rowH = (H - 8) / n;
+  g.fillStyle = css("--line"); g.fillRect(0, 0, W, H);
+  seg.utts.forEach(u => {
+    const i = seg.m.speakers.indexOf(u.spk); if (i < 0) return;
+    g.fillStyle = spkColor(u.spk); g.fillRect(X(u.start), 4 + i * rowH, Math.max(1, X(u.end) - X(u.start)), rowH - 1);
+  });
+  for (const e of seg.events) { g.fillStyle = css(e.type === "hold" ? "--hold" : "--shift"); g.fillRect(X(e.start), 0, 2, 4); }
+  const [t0, , win] = viewRange(t);
+  g.strokeStyle = css("--fg"); g.lineWidth = 1.5; g.strokeRect(X(t0), 0.75, Math.max(3, X(win)), H - 1.5);
+  g.fillStyle = css("--fg"); g.fillRect(X(t) - 1, 0, 2, H);
+}
+
+// Timeline interaction: click seeks, drag pans, wheel zooms (horizontal wheel pans), hover shows details.
+let drag = null;
+const timeAt = x => { const v = tl._view; return v.t0 + (x - v.labelW) / (v.W - v.labelW) * v.win; };
+const local = (el, e) => { const r = el.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+tl.addEventListener("pointerdown", e => {
+  if (!tl._view) return;
+  drag = { x: e.clientX, t0: tl._view.t0, moved: false };
+  tl.setPointerCapture(e.pointerId);
+});
+tl.addEventListener("pointermove", e => {
+  if (drag) {
+    const dx = e.clientX - drag.x, v = tl._view;
+    if (Math.abs(dx) > 4) {
+      if (!drag.moved) { drag.moved = true; setFollow(false); tl.classList.add("grab"); }
+      view.t0 = drag.t0 - dx / (v.W - v.labelW) * v.win;
+    }
+    $("tip").style.display = "none";
+    return;
+  }
+  const [mx, my] = local(tl, e);
+  const h = hits.filter(h => mx >= h.x1 && mx <= h.x2 && my >= h.y1 && my <= h.y2).pop();
+  const tip = $("tip");
+  if (!h) { tip.style.display = "none"; return; }
+  tip.innerHTML = h.html; tip.style.display = "block";
+  const wrap = $("tlWrap").getBoundingClientRect(), r = tl.getBoundingClientRect();
+  let left = r.left - wrap.left + mx + 12;
+  left = Math.min(left, wrap.width - tip.offsetWidth - 4);
+  tip.style.left = Math.max(4, left) + "px";
+  tip.style.top = (r.top - wrap.top + my + 16) + "px";
+});
+tl.addEventListener("pointerup", e => {
+  const [mx] = local(tl, e);
+  if (drag && !drag.moved && mx >= tl._view.labelW) clock.seek(timeAt(mx));
+  drag = null; tl.classList.remove("grab");
+});
+tl.addEventListener("pointerleave", () => { $("tip").style.display = "none"; });
+tl.addEventListener("wheel", e => {
+  if (!tl._view) return;
+  e.preventDefault();
+  if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+    setFollow(false); view.t0 += e.deltaX / (tl._view.W - tl._view.labelW) * tl._view.win;
+    return;
+  }
+  const [mx] = local(tl, e);
+  const anchor = mx >= tl._view.labelW ? timeAt(mx) : null;
+  setWin(view.win * Math.exp(e.deltaY * 0.0015), view.follow ? null : anchor);
+}, { passive: false });
+ov.addEventListener("click", e => {
+  const t = local(ov, e)[0] / ov.clientWidth * seg.duration;
+  clock.seek(t);
+  if (!view.follow) view.t0 = t - view.win / 2;
+});
+
+let lastEv = null;
+function frame(now) {
+  clock.tick(now);
+  if (seg) {
+    const t = clock.time;
+    $("time").textContent = `${fmt(t)} / ${fmt(seg.duration)}`;
+    $("play").textContent = clock.isPlaying ? "Pause" : "Play";
+    drawOverlay(t); drawCaption(t); drawTimeline(t); drawOverview(t);
+    const cur = seg.events.find(e => e.start - 0.3 <= t && t <= e.end + 0.3);
+    if (cur !== lastEv) {
+      lastEv = cur;
+      [...$("evRows").children].forEach(tr => tr.classList.toggle("cur", cur && +tr.dataset.t === cur.start));
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+// ---------- start ----------
+(async () => {
+  try { manifest = JSON.parse(await text("data/manifest.json")); }
+  catch (err) {
+    document.querySelector(".grid").innerHTML = `<div class="panel err">Could not load data/manifest.json (${err.message}).
+      If you opened this file directly, serve the folder instead: <code>python3 -m http.server</code> in demo/.</div>`;
+    return;
+  }
+  buildTabs();
+  const fromHash = () => Math.max(0, manifest.segments.findIndex(m => `${m.video_id}/${m.segment_id}` === location.hash.slice(1)));
+  window.addEventListener("hashchange", () => { if (location.hash.slice(1) !== seg?.id) select(fromHash()); });
+  await select(fromHash());
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
